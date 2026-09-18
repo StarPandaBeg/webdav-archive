@@ -43,10 +43,18 @@ export async function convertVideoToMp4(
   const token = randomToken();
   const temporaryPath = path.join(path.dirname(inputPath), `.${file.basename}.${token}.ffmpeg.mp4`);
   const ffmpegPath = await resolveFfmpegPath(execFile, fs, path, os, configuredFfmpegPath);
+  const ffprobePath = siblingFfprobePath(ffmpegPath, path);
+  const durationSeconds = await probeDuration(execFile, ffprobePath, inputPath);
 
-  progress.indeterminate(t("convert.running"));
+  if (durationSeconds === null) {
+    progress.indeterminate(t("convert.running"));
+  } else {
+    progress.update(5, t("convert.running"));
+  }
   try {
-    await runFfmpeg(execFile, ffmpegPath, inputPath, temporaryPath);
+    await runFfmpeg(execFile, ffmpegPath, inputPath, temporaryPath, durationSeconds, (fraction) => {
+      progress.update(5 + fraction * 80, t("convert.running"));
+    });
     const result = await fs.stat(temporaryPath);
     if (!result.isFile() || result.size === 0) {
       throw new Error(t("convert.emptyOutput"));
@@ -84,6 +92,8 @@ async function runFfmpeg(
   ffmpegPath: string,
   inputPath: string,
   outputPath: string,
+  durationSeconds: number | null,
+  onProgress: (fraction: number) => void,
 ): Promise<void> {
   const args = [
     "-i", inputPath,
@@ -96,11 +106,13 @@ async function runFfmpeg(
     "-c:a", "aac",
     "-b:a", "128k",
     "-movflags", "+faststart",
+    "-progress", "pipe:1",
+    "-nostats",
     outputPath,
   ];
 
   try {
-    await execute(execFile, ffmpegPath, args);
+    await executeFfmpeg(execFile, ffmpegPath, args, durationSeconds, onProgress);
   } catch (error) {
     const failure = error as ExecFileError;
     if (failure.code === "ENOENT") {
@@ -113,6 +125,73 @@ async function runFfmpeg(
       .join(" ") || "FFmpeg error";
     throw new Error(t("convert.failed", { code: failure.code ?? "?", details }));
   }
+}
+
+async function probeDuration(execFile: ExecFile, ffprobePath: string, inputPath: string): Promise<number | null> {
+  try {
+    const { stdout } = await execute(execFile, ffprobePath, [
+      "-v", "error",
+      "-show_entries", "format=duration",
+      "-of", "default=noprint_wrappers=1:nokey=1",
+      inputPath,
+    ], 2 * 1024 * 1024);
+    const duration = Number.parseFloat(stdout.trim());
+    return Number.isFinite(duration) && duration > 0 ? duration : null;
+  } catch {
+    return null;
+  }
+}
+
+function executeFfmpeg(
+  execFile: ExecFile,
+  executable: string,
+  args: string[],
+  durationSeconds: number | null,
+  onProgress: (fraction: number) => void,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = execFile(
+      executable,
+      args,
+      { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 },
+      (error, _stdout, stderr) => {
+        if (error) {
+          const failure = error as ExecFileError;
+          failure.stderr = String(stderr ?? "");
+          reject(failure);
+          return;
+        }
+        onProgress(1);
+        resolve();
+      },
+    );
+
+    if (durationSeconds === null) {
+      return;
+    }
+
+    let buffered = "";
+    child.stdout?.setEncoding("utf8");
+    child.stdout?.on("data", (chunk: string) => {
+      buffered += chunk;
+      const lines = buffered.split(/\r?\n/);
+      buffered = lines.pop() ?? "";
+      for (const line of lines) {
+        const separator = line.indexOf("=");
+        if (separator === -1) continue;
+        const key = line.slice(0, separator);
+        const value = line.slice(separator + 1);
+        if (key === "out_time_us") {
+          const elapsedSeconds = Number(value) / 1_000_000;
+          if (Number.isFinite(elapsedSeconds)) {
+            onProgress(Math.max(0, Math.min(1, elapsedSeconds / durationSeconds)));
+          }
+        } else if (key === "progress" && value === "end") {
+          onProgress(1);
+        }
+      }
+    });
+  });
 }
 
 async function resolveFfmpegPath(
@@ -202,6 +281,13 @@ function expandHome(value: string, path: typeof import("node:path"), homeDirecto
     : value.startsWith(`~${path.sep}`)
       ? path.join(homeDirectory, value.slice(2))
       : value;
+}
+
+function siblingFfprobePath(ffmpegPath: string, path: typeof import("node:path")): string {
+  if (ffmpegPath === "ffmpeg") {
+    return "ffprobe";
+  }
+  return path.join(path.dirname(ffmpegPath), process.platform === "win32" ? "ffprobe.exe" : "ffprobe");
 }
 
 async function replaceWithBackup(

@@ -48,7 +48,9 @@ Video conversion is available in Obsidian Desktop and requires `ffmpeg`. The
 plugin checks the application's `PATH`, common Homebrew/system locations, and
 the user's login shell. An absolute executable path can also be set explicitly
 in the plugin settings. Non-MP4 inputs are replaced with a same-basename `.mp4`
-file; Obsidian updates vault links during the rename.
+file; Obsidian updates vault links during the rename. Conversion progress is
+read from FFmpeg's machine-readable `-progress pipe:1` output, using `ffprobe`
+to determine the source duration.
 
 Both URL bases receive exactly the same relative path. For example:
 
