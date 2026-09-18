@@ -1,4 +1,4 @@
-import { FileView, Setting, TFile, WorkspaceLeaf } from "obsidian";
+import { Component, FileView, MarkdownRenderer, requestUrl, Setting, TFile, WorkspaceLeaf } from "obsidian";
 import type { IconName } from "obsidian";
 import type WebDavArchivePlugin from "./main";
 import { parseRemoteFile } from "./remote-file";
@@ -10,6 +10,7 @@ export const VIEW_TYPE_REMOTE_FILE = "webdav-archive-remote-file";
 export class RemoteFileView extends FileView {
   private originalName: string | null = null;
   private mediaEl: HTMLMediaElement | null = null;
+  private markdownComponent: Component | null = null;
   private renderGeneration = 0;
 
   constructor(leaf: WorkspaceLeaf, private readonly archivePlugin: WebDavArchivePlugin) {
@@ -46,12 +47,16 @@ export class RemoteFileView extends FileView {
       return;
     }
 
+    if (metadata.version === 2 && (await this.renderText(metadata, file))) {
+      return;
+    }
+
     this.renderInformation(metadata, file);
   }
 
   async onUnloadFile(): Promise<void> {
     this.renderGeneration += 1;
-    this.releaseMedia();
+    this.releasePreview();
   }
 
   private renderMedia(metadata: RemoteFile, marker: TFile): boolean {
@@ -101,6 +106,57 @@ export class RemoteFileView extends FileView {
     return true;
   }
 
+  private async renderText(metadata: RemoteFile, marker: TFile): Promise<boolean> {
+    const mimeType = metadata.mimeType.toLowerCase().split(";", 1)[0].trim();
+    const isMarkdown = mimeType === "text/markdown" || mimeType === "text/x-markdown";
+    const isPlainText = mimeType === "text/plain";
+    if (!isMarkdown && !isPlainText) {
+      return false;
+    }
+
+    this.resetContent();
+    this.contentEl.addClass("is-text");
+    const generation = this.renderGeneration;
+    const loading = this.contentEl.createDiv({
+      cls: "webdav-archive-text-loading",
+      text: t("view.loadingPreview"),
+    });
+
+    try {
+      const response = await requestUrl({
+        url: metadata.fileUrl,
+        method: "GET",
+        throw: false,
+      });
+      if (response.status < 200 || response.status >= 300) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      if (this.file !== marker || this.renderGeneration !== generation) {
+        return true;
+      }
+
+      loading.remove();
+      const documentEl = this.contentEl.createDiv({ cls: "webdav-archive-text-document" });
+      if (isMarkdown) {
+        documentEl.addClass("markdown-rendered");
+        this.markdownComponent = this.addChild(new Component());
+        await MarkdownRenderer.render(this.app, response.text, documentEl, marker.path, this.markdownComponent);
+      } else {
+        documentEl.createEl("pre", {
+          cls: "webdav-archive-plain-text",
+          text: response.text,
+        });
+      }
+      return true;
+    } catch {
+      if (this.file === marker && this.renderGeneration === generation) {
+        this.resetContent();
+        this.renderInformation(metadata, marker, t("view.previewUnavailable"));
+      }
+      return true;
+    }
+  }
+
   private renderInformation(metadata: ParsedRemoteFile, file: TFile, warning?: string): void {
     this.contentEl.removeClass("is-media");
 
@@ -135,20 +191,25 @@ export class RemoteFileView extends FileView {
 
   private resetContent(media = false): void {
     this.renderGeneration += 1;
-    this.releaseMedia();
+    this.releasePreview();
     this.contentEl.empty();
     this.contentEl.addClass("webdav-archive-remote-view");
+    this.contentEl.removeClass("is-text");
     this.contentEl.toggleClass("is-media", media);
   }
 
-  private releaseMedia(): void {
-    if (!this.mediaEl) {
-      return;
+  private releasePreview(): void {
+    if (this.mediaEl) {
+      this.mediaEl.pause();
+      this.mediaEl.removeAttribute("src");
+      this.mediaEl.load();
+      this.mediaEl = null;
     }
-    this.mediaEl.pause();
-    this.mediaEl.removeAttribute("src");
-    this.mediaEl.load();
-    this.mediaEl = null;
+
+    if (this.markdownComponent) {
+      this.removeChild(this.markdownComponent);
+      this.markdownComponent = null;
+    }
   }
 
   private renderError(message: string): void {

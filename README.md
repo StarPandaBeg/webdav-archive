@@ -19,6 +19,8 @@ them later.
   with an English fallback.
 - Previews public `image/*`, `video/*`, and `audio/*` files directly in the
   `.remote` viewer.
+- Renders public Markdown files with Obsidian's Markdown renderer and displays
+  plain text files in a read-only text view.
 - Verifies a restored download using its size and SHA-256 checksum.
 
 The source file is deleted only after the upload is verified and the `.remote`
