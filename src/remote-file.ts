@@ -1,3 +1,5 @@
+import { t } from "./i18n";
+
 interface RemoteFileMetadata {
   storage: "webdav";
   originalName: string;
@@ -34,13 +36,13 @@ export function parseRemoteFile(value: string): ParsedRemoteFile {
   try {
     parsed = JSON.parse(value);
   } catch {
-    throw new Error("The .remote file does not contain valid JSON");
+    throw new Error(t("error.invalidJson"));
   }
 
   if (isVersionTwoRemoteFile(parsed)) {
     const publicUrl = typeof parsed.publicUrl === "string" ? parsed.publicUrl : parsed.fileUrl;
     if (!publicUrl) {
-      throw new Error("The .remote file is missing its public URL");
+      throw new Error(t("error.missingPublicUrl"));
     }
     const fileUrl = typeof parsed.fileUrl === "string" ? parsed.fileUrl : publicUrl;
     return { ...parsed, publicUrl, fileUrl };
@@ -50,7 +52,7 @@ export function parseRemoteFile(value: string): ParsedRemoteFile {
     return parsed;
   }
 
-  throw new Error("The .remote file has an unsupported or invalid format");
+  throw new Error(t("error.invalidRemoteFile"));
 }
 
 function isVersionTwoRemoteFile(value: unknown): value is Omit<RemoteFile, "publicUrl" | "fileUrl"> & {

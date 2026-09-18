@@ -1,7 +1,8 @@
-import { FileView, TFile, WorkspaceLeaf } from "obsidian";
+import { FileView, Setting, TFile, WorkspaceLeaf } from "obsidian";
 import type { IconName } from "obsidian";
 import type WebDavArchivePlugin from "./main";
 import { parseRemoteFile } from "./remote-file";
+import { t } from "./i18n";
 
 export const VIEW_TYPE_REMOTE_FILE = "webdav-archive-remote-file";
 
@@ -21,7 +22,7 @@ export class RemoteFileView extends FileView {
   }
 
   getDisplayText(): string {
-    return this.originalName ?? this.file?.basename ?? "Remote file";
+    return this.originalName ?? this.file?.basename ?? t("view.remoteFile");
   }
 
   async onLoadFile(file: TFile): Promise<void> {
@@ -39,43 +40,34 @@ export class RemoteFileView extends FileView {
 
     this.originalName = metadata.originalName;
 
-    const card = this.contentEl.createDiv({ cls: "webdav-archive-remote-card" });
-    card.createDiv({ cls: "webdav-archive-remote-card__eyebrow", text: "WEB­DAV ARCHIVE" });
-    card.createEl("h2", { text: metadata.originalName });
+    const documentEl = this.contentEl.createDiv({ cls: "webdav-archive-remote-document" });
+    documentEl.createEl("h1", { text: t("view.title") });
 
-    const details = card.createDiv({ cls: "webdav-archive-remote-card__details" });
-    this.addDetail(details, "Original name", metadata.originalName);
-    this.addDetail(details, "Type", metadata.mimeType);
+    new Setting(documentEl).setName(t("view.originalName")).setDesc(metadata.originalName);
+    new Setting(documentEl).setName(t("view.type")).setDesc(metadata.mimeType);
 
-    const restoreButton = card.createEl("button", {
-      cls: "mod-cta webdav-archive-remote-card__restore",
-      text: "Restore from WebDAV",
-    });
-    restoreButton.addEventListener("click", async () => {
-      restoreButton.disabled = true;
-      restoreButton.textContent = "Restoring…";
-      try {
-        await this.archivePlugin.restoreRemoteFile(file);
-      } finally {
-        if (this.app.vault.getAbstractFileByPath(file.path)) {
-          restoreButton.disabled = false;
-          restoreButton.textContent = "Restore from WebDAV";
-        } else {
-          restoreButton.textContent = "Restored";
-        }
-      }
-    });
-  }
-
-  private addDetail(container: HTMLElement, label: string, value: string): void {
-    const row = container.createDiv({ cls: "webdav-archive-remote-card__detail" });
-    row.createDiv({ cls: "webdav-archive-remote-card__label", text: label });
-    row.createDiv({ cls: "webdav-archive-remote-card__value", text: value });
+    new Setting(documentEl)
+      .setName(t("view.restore"))
+      .setDesc(t("view.restoreDescription"))
+      .addButton((button) =>
+        button
+          .setButtonText(t("view.restore"))
+          .setCta()
+          .onClick(async () => {
+            button.setDisabled(true).setButtonText(t("view.restoring"));
+            await this.archivePlugin.restoreRemoteFile(file);
+            if (this.app.vault.getAbstractFileByPath(file.path)) {
+              button.setDisabled(false).setButtonText(t("view.restore"));
+            } else {
+              button.setButtonText(t("view.restored"));
+            }
+          }),
+      );
   }
 
   private renderError(message: string): void {
-    const card = this.contentEl.createDiv({ cls: "webdav-archive-remote-card" });
-    card.createEl("h2", { text: "Invalid remote file" });
-    card.createEl("p", { cls: "webdav-archive-remote-card__error", text: message });
+    const documentEl = this.contentEl.createDiv({ cls: "webdav-archive-remote-document" });
+    documentEl.createEl("h1", { text: t("view.invalid") });
+    documentEl.createEl("p", { cls: "mod-warning webdav-archive-remote-error", text: message });
   }
 }

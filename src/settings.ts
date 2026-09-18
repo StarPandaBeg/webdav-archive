@@ -1,5 +1,6 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
 import type WebDavArchivePlugin from "./main";
+import { t } from "./i18n";
 
 export interface WebDavArchiveSettings {
   webDavUrl: string;
@@ -25,8 +26,8 @@ export class WebDavArchiveSettingTab extends PluginSettingTab {
     containerEl.empty();
 
     new Setting(containerEl)
-      .setName("WebDAV URL")
-      .setDesc("Writable base URL, including the destination folder. The object path is appended to it.")
+      .setName(t("settings.webDavUrl"))
+      .setDesc(t("settings.webDavUrlDescription"))
       .addText((text) =>
         text
           .setPlaceholder("https://cloud.example.com/webdav")
@@ -38,8 +39,8 @@ export class WebDavArchiveSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Public URL")
-      .setDesc("Read-only base URL for the same folder. The same object path is appended to it.")
+      .setName(t("settings.publicUrl"))
+      .setDesc(t("settings.publicUrlDescription"))
       .addText((text) =>
         text
           .setPlaceholder("https://files.example.com")
@@ -51,7 +52,7 @@ export class WebDavArchiveSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Username")
+      .setName(t("settings.username"))
       .addText((text) =>
         text.setValue(this.archivePlugin.settings.username).onChange(async (value) => {
           this.archivePlugin.settings.username = value;
@@ -60,8 +61,8 @@ export class WebDavArchiveSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Password")
-      .setDesc("Stored locally in Obsidian's plugin data. An app password is recommended when available.")
+      .setName(t("settings.password"))
+      .setDesc(t("settings.passwordDescription"))
       .addText((text) => {
         text.inputEl.type = "password";
         text.setValue(this.archivePlugin.settings.password).onChange(async (value) => {

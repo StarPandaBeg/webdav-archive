@@ -48,61 +48,21 @@
 }
 
 .webdav-archive-remote-view {
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 48px 24px;
+  padding: var(--file-margins);
+  overflow: auto;
 }
 
-.webdav-archive-remote-card {
-  width: min(100%, 520px);
-  padding: 28px;
-  border: 1px solid var(--background-modifier-border);
-  border-radius: var(--radius-l);
-  background: var(--background-primary-alt);
-  box-shadow: var(--shadow-s);
-}
-
-.webdav-archive-remote-card__eyebrow {
-  margin-bottom: 8px;
-  color: var(--text-accent);
-  font-size: var(--font-ui-smaller);
-  font-weight: var(--font-semibold);
-  letter-spacing: 0.08em;
-}
-
-.webdav-archive-remote-card h2 {
-  margin: 0 0 24px;
-  overflow-wrap: anywhere;
-}
-
-.webdav-archive-remote-card__details {
-  margin-bottom: 24px;
-  border-top: 1px solid var(--background-modifier-border);
-}
-
-.webdav-archive-remote-card__detail {
-  display: grid;
-  grid-template-columns: minmax(100px, 0.4fr) minmax(0, 1fr);
-  gap: 16px;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--background-modifier-border);
-}
-
-.webdav-archive-remote-card__label {
-  color: var(--text-muted);
-}
-
-.webdav-archive-remote-card__value {
-  overflow-wrap: anywhere;
-}
-
-.webdav-archive-remote-card__restore {
+.webdav-archive-remote-document {
   width: 100%;
+  max-width: var(--file-line-width);
+  margin: 0 auto;
 }
 
-.webdav-archive-remote-card__error {
-  margin-bottom: 0;
+.webdav-archive-remote-document h1 {
+  margin-block: 0 24px;
+}
+
+.webdav-archive-remote-error {
   color: var(--text-error);
 }
 

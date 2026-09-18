@@ -5,6 +5,7 @@ import { WebDavClient } from "./webdav";
 import { getMimeType } from "./mime";
 import { ProgressNotice } from "./progress-notice";
 import { RemoteFileView, VIEW_TYPE_REMOTE_FILE } from "./remote-file-view";
+import { t } from "./i18n";
 
 const REMOTE_EXTENSION = "remote";
 
@@ -27,7 +28,7 @@ export default class WebDavArchivePlugin extends Plugin {
         if (file.extension.toLowerCase() === REMOTE_EXTENSION) {
           menu.addItem((item) =>
             item
-              .setTitle("Restore from WebDAV")
+              .setTitle(t("menu.restore"))
               .setIcon("download")
               .onClick(() => void this.restoreRemoteFile(file)),
           );
@@ -36,7 +37,7 @@ export default class WebDavArchivePlugin extends Plugin {
 
         menu.addItem((item) =>
           item
-            .setTitle("Archive to WebDAV")
+            .setTitle(t("menu.archive"))
             .setIcon("archive")
             .onClick(() => void this.archive(file)),
         );
@@ -77,23 +78,23 @@ export default class WebDavArchivePlugin extends Plugin {
   }
 
   private async archive(file: TFile): Promise<void> {
-    await this.runExclusive(file.path, `Archiving ${file.name}`, async (progress) => {
-      progress.update(5, "Checking configuration…");
+    await this.runExclusive(file.path, t("archive.title", { name: file.name }), async (progress) => {
+      progress.update(5, t("archive.checkingConfiguration"));
       const client = this.createClient();
       const markerPath = `${file.path}.${REMOTE_EXTENSION}`;
       if (this.app.vault.getAbstractFileByPath(markerPath)) {
-        throw new Error(`A marker already exists: ${markerPath}`);
+        throw new Error(t("archive.markerExists", { path: markerPath }));
       }
 
-      progress.update(10, "Reading local file…");
+      progress.update(10, t("archive.reading"));
       const data = await this.app.vault.readBinary(file);
       const mimeType = getMimeType(file.extension);
-      progress.update(25, "Calculating checksum…");
+      progress.update(25, t("archive.checksum"));
       const checksum = await sha256(data);
-      progress.indeterminate("Uploading to WebDAV…");
+      progress.indeterminate(t("archive.uploading"));
       const uploaded = await client.upload(data, mimeType);
 
-      progress.update(82, "Creating remote marker…");
+      progress.update(82, t("archive.creatingMarker"));
       const metadata: RemoteFile = {
         version: 2,
         storage: "webdav",
@@ -111,7 +112,7 @@ export default class WebDavArchivePlugin extends Plugin {
       let marker: TFile | null = null;
       try {
         marker = await this.app.vault.create(markerPath, serializeRemoteFile(metadata));
-        progress.update(94, "Removing local original…");
+        progress.update(94, t("archive.removingOriginal"));
         await this.app.vault.delete(file);
       } catch (error) {
         if (marker) {
@@ -121,15 +122,15 @@ export default class WebDavArchivePlugin extends Plugin {
         throw error;
       }
 
-      return `Archived ${file.name}`;
+      return t("archive.complete", { name: file.name });
     });
   }
 
   async restoreRemoteFile(marker: TFile): Promise<void> {
-    await this.runExclusive(marker.path, `Restoring ${marker.basename}`, async (progress) => {
-      progress.update(5, "Reading remote marker…");
+    await this.runExclusive(marker.path, t("restore.title", { name: marker.basename }), async (progress) => {
+      progress.update(5, t("restore.readingMarker"));
       const metadata = parseRemoteFile(await this.app.vault.read(marker));
-      progress.update(10, "Checking configuration…");
+      progress.update(10, t("archive.checkingConfiguration"));
       const client = this.createClient(false);
       const relativePath =
         metadata.version === 1
@@ -141,44 +142,44 @@ export default class WebDavArchivePlugin extends Plugin {
 
       if (existing) {
         if (!(existing instanceof TFile)) {
-          throw new Error(`Cannot restore because the target path is occupied: ${targetPath}`);
+          throw new Error(t("restore.targetOccupied", { path: targetPath }));
         }
 
-        progress.update(25, "Checking restored local file…");
+        progress.update(25, t("restore.checkingLocal"));
         const existingData = await this.app.vault.readBinary(existing);
         if (existingData.byteLength !== metadata.size || (await sha256(existingData)) !== metadata.sha256) {
-          throw new Error(`A different file already exists at ${targetPath}`);
+          throw new Error(t("restore.differentFile", { path: targetPath }));
         }
 
         // A previous restore downloaded the file but could not finish remote cleanup.
-        progress.indeterminate("Finishing WebDAV cleanup…");
+        progress.indeterminate(t("restore.finishingCleanup"));
         await client.delete(relativePath);
-        progress.update(95, "Removing remote marker…");
+        progress.update(95, t("restore.removingMarker"));
         await this.app.vault.delete(marker);
-        return `Restored ${metadata.originalName}`;
+        return t("restore.complete", { name: metadata.originalName });
       }
 
-      progress.indeterminate("Downloading from WebDAV…");
+      progress.indeterminate(t("restore.downloading"));
       const data = await client.download(relativePath);
-      progress.update(68, "Checking downloaded size…");
+      progress.update(68, t("restore.checkingSize"));
       if (data.byteLength !== metadata.size) {
-        throw new Error(`Downloaded size does not match: expected ${metadata.size}, got ${data.byteLength}`);
+        throw new Error(t("restore.sizeMismatch", { expected: metadata.size, actual: data.byteLength }));
       }
-      progress.update(74, "Verifying checksum…");
+      progress.update(74, t("restore.verifyingChecksum"));
       if ((await sha256(data)) !== metadata.sha256) {
-        throw new Error("Downloaded file failed its integrity check");
+        throw new Error(t("restore.integrityFailed"));
       }
 
-      progress.update(84, "Writing local file…");
+      progress.update(84, t("restore.writing"));
       await this.app.vault.createBinary(targetPath, data);
 
       // If either cleanup operation fails, the restored local file and marker are
       // intentionally kept. Running Restore again safely retries the cleanup.
-      progress.indeterminate("Removing WebDAV object…");
+      progress.indeterminate(t("restore.removingRemote"));
       await client.delete(relativePath);
-      progress.update(96, "Removing remote marker…");
+      progress.update(96, t("restore.removingMarker"));
       await this.app.vault.delete(marker);
-      return `Restored ${metadata.originalName}`;
+      return t("restore.complete", { name: metadata.originalName });
     });
   }
 
@@ -194,7 +195,7 @@ export default class WebDavArchivePlugin extends Plugin {
     operation: (progress: ProgressNotice) => Promise<string>,
   ): Promise<void> {
     if (this.activeOperations.has(path)) {
-      new Notice("An archive operation is already running for this file");
+      new Notice(t("operation.running"));
       return;
     }
 

@@ -1,5 +1,6 @@
 import { requestUrl } from "obsidian";
 import type { WebDavArchiveSettings } from "./settings";
+import { t } from "./i18n";
 
 export interface UploadedObject {
   relativePath: string;
@@ -31,7 +32,7 @@ export class WebDavClient {
     });
 
     if (!isSuccess(response.status)) {
-      throw new Error(`Upload failed with HTTP ${response.status}`);
+      throw new Error(t("error.upload", { status: response.status }));
     }
 
     try {
@@ -42,12 +43,12 @@ export class WebDavClient {
         throw: false,
       });
       if (!isSuccess(verification.status)) {
-        throw new Error(`Upload verification failed with HTTP ${verification.status}`);
+        throw new Error(t("error.uploadVerification", { status: verification.status }));
       }
 
       const contentLength = getHeader(verification.headers, "content-length");
       if (contentLength !== undefined && Number(contentLength) !== data.byteLength) {
-        throw new Error(`Upload verification failed: expected ${data.byteLength} bytes, server reported ${contentLength}`);
+        throw new Error(t("error.uploadSize", { expected: data.byteLength, actual: contentLength }));
       }
     } catch (error) {
       await this.delete(relativePath).catch(() => undefined);
@@ -68,7 +69,7 @@ export class WebDavClient {
       throw: false,
     });
     if (!isSuccess(response.status)) {
-      throw new Error(`Download failed with HTTP ${response.status}`);
+      throw new Error(t("error.download", { status: response.status }));
     }
     return response.arrayBuffer;
   }
@@ -81,18 +82,18 @@ export class WebDavClient {
       throw: false,
     });
     if (!isSuccess(response.status) && response.status !== 404) {
-      throw new Error(`Remote cleanup failed with HTTP ${response.status}`);
+      throw new Error(t("error.remoteCleanup", { status: response.status }));
     }
   }
 
   relativePathFromLegacyUrl(remoteUrl: string): string {
     const base = this.webDavBaseUrl();
-    const remote = parseHttpUrl(remoteUrl, "Invalid URL in the legacy .remote file");
+    const remote = parseHttpUrl(remoteUrl, t("error.invalidLegacyUrl"));
     const basePath = normalizedBasePath(base);
     const prefix = basePath ? `${basePath}/` : "/";
 
     if (remote.origin !== base.origin || !remote.pathname.startsWith(prefix)) {
-      throw new Error("The legacy .remote URL does not belong to the configured WebDAV URL");
+      throw new Error(t("error.untrustedLegacyUrl"));
     }
 
     const encodedPath = remote.pathname.slice(prefix.length);
@@ -114,23 +115,23 @@ export class WebDavClient {
 
   private webDavBaseUrl(): URL {
     if (!this.settings.webDavUrl.trim()) {
-      throw new Error("Configure the WebDAV URL in the plugin settings");
+      throw new Error(t("error.configureWebDavUrl"));
     }
 
-    const url = parseHttpUrl(this.settings.webDavUrl.trim(), "The WebDAV URL is invalid");
+    const url = parseHttpUrl(this.settings.webDavUrl.trim(), t("error.invalidWebDavUrl"));
     if (url.username || url.password) {
-      throw new Error("Put WebDAV credentials in the username and password fields, not in the URL");
+      throw new Error(t("error.credentialsInUrl"));
     }
     return url;
   }
 
   private publicBaseUrl(): URL {
     if (!this.settings.publicUrl.trim()) {
-      throw new Error("Configure the public URL in the plugin settings");
+      throw new Error(t("error.configurePublicUrl"));
     }
-    const url = parseHttpUrl(this.settings.publicUrl.trim(), "The public URL is invalid");
+    const url = parseHttpUrl(this.settings.publicUrl.trim(), t("error.invalidPublicUrl"));
     if (url.username || url.password) {
-      throw new Error("The public URL must not contain credentials");
+      throw new Error(t("error.publicCredentials"));
     }
     return url;
   }
@@ -158,7 +159,7 @@ function normalizedBasePath(url: URL): string {
 function validateRelativePath(value: string): string {
   const segments = value.split("/");
   if (!value || value.startsWith("/") || segments.some((segment) => !segment || segment === "." || segment === "..")) {
-    throw new Error("The remote object path is invalid");
+    throw new Error(t("error.invalidRemotePath"));
   }
   return value;
 }

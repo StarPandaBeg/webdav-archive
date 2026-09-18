@@ -1,4 +1,5 @@
 import { Notice } from "obsidian";
+import { t } from "./i18n";
 
 export class ProgressNotice {
   private readonly notice: Notice;
@@ -31,7 +32,7 @@ export class ProgressNotice {
     container.append(titleEl, detailsEl, this.progressEl);
     fragment.append(container);
     this.notice = new Notice(fragment, 0);
-    this.update(0, "Preparing…");
+    this.update(0, t("progress.preparing"));
   }
 
   update(percent: number, status: string): void {
@@ -57,7 +58,7 @@ export class ProgressNotice {
     this.progressEl.removeAttribute("value");
     this.progressEl.classList.add("is-error");
     this.statusEl.textContent = status;
-    this.percentEl.textContent = "Failed";
+    this.percentEl.textContent = t("progress.failed");
     this.scheduleHide(8000);
   }
 
