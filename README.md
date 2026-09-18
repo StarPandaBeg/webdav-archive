@@ -1,9 +1,53 @@
 # WebDAV Archive
 
-An empty Obsidian plugin scaffold for a future workflow that will archive vault
-files in WebDAV storage.
+An Obsidian plugin for moving large vault files to WebDAV storage and restoring
+them later.
 
-The plugin does not provide any user-facing features yet.
+## Current features
+
+- Adds **Archive to WebDAV** to the context menu of every vault file.
+- Shows archive and restore progress in a persistent Obsidian notification.
+- Uploads the file under a random UUID and verifies the uploaded size.
+- Replaces the local file with a JSON marker named `<original name>.remote`.
+- Stores the shared relative path, generated public URL, original name and path,
+  MIME type, byte size, SHA-256 checksum, and archive date in the marker.
+- Adds **Restore from WebDAV** to `.remote` files.
+- Opens `.remote` files in a built-in information view instead of handing them
+  to the operating system.
+- Verifies a restored download using its size and SHA-256 checksum.
+
+The source file is deleted only after the upload is verified and the `.remote`
+marker has been created. During restore, the local file is created and verified
+before the WebDAV object and marker are deleted. Interrupted cleanup can be
+retried by choosing **Restore from WebDAV** again.
+
+Public links and remote file viewers are not implemented yet.
+
+## Configuration
+
+Open **Settings → Community plugins → WebDAV Archive** and configure:
+
+- The writable **WebDAV URL**.
+- The read-only **Public URL**.
+- The WebDAV username and password. Prefer an app password if the provider
+  supports one.
+
+Credentials are stored locally in Obsidian's plugin data and are never written
+to `.remote` files.
+
+Both URL bases receive exactly the same relative path. For example:
+
+```text
+WebDAV URL:  https://cloud.example.com/dav/files/user/obsidian-archive
+Public URL:  https://cdn.example.com/files/obsidian-archive
+Object path: 550e8400-e29b-41d4-a716-446655440000
+
+Upload: https://cloud.example.com/dav/files/user/obsidian-archive/550e8400-e29b-41d4-a716-446655440000
+Public: https://cdn.example.com/files/obsidian-archive/550e8400-e29b-41d4-a716-446655440000
+```
+
+The `.remote` format is currently version 2 and does not support older marker
+formats.
 
 ## Development
 
@@ -14,8 +58,8 @@ npm install
 npm run build
 ```
 
-The build creates `main.js`. To test the plugin manually, copy `main.js` and
-`manifest.json` to:
+The build creates `main.js`. To test the plugin manually, copy `main.js`,
+`manifest.json`, and `styles.css` to:
 
 ```text
 <vault>/.obsidian/plugins/webdav-archive/
@@ -29,9 +73,3 @@ npm run dev
 ```
 
 You can also set `VAULT_PLUGIN_DIR` to the complete destination plugin folder.
-
-## Planned direction
-
-In a future version, the plugin will let a user explicitly move a selected file
-to WebDAV storage to free local vault space.
-

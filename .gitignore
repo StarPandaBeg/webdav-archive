@@ -2,5 +2,5 @@ node_modules/
 main.js
 *.map
 .dev-vault
+data.json
 .DS_Store
-

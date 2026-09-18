@@ -40,7 +40,7 @@ async function deploy() {
   }
 
   await mkdir(outputDirectory, { recursive: true });
-  for (const asset of ["main.js", "manifest.json"]) {
+  for (const asset of ["main.js", "manifest.json", "styles.css"]) {
     await copyFile(asset, join(outputDirectory, asset));
   }
   await writeFile(join(outputDirectory, ".hotreload"), "");
@@ -95,4 +95,3 @@ if (production) {
 } else {
   await context.watch();
 }
-
