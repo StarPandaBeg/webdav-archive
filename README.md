@@ -50,7 +50,9 @@ the user's login shell. An absolute executable path can also be set explicitly
 in the plugin settings. Non-MP4 inputs are replaced with a same-basename `.mp4`
 file; Obsidian updates vault links during the rename. Conversion progress is
 read from FFmpeg's machine-readable `-progress pipe:1` output, using `ffprobe`
-to determine the source duration.
+for the input duration. The video encoder is selected in the plugin settings;
+`libx264` is the default, while VideoToolbox, NVENC, QSV, AMF, and VAAPI can be
+used when supported by the installed FFmpeg build and hardware.
 
 Both URL bases receive exactly the same relative path. For example:
 

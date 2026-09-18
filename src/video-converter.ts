@@ -2,6 +2,7 @@ import { FileSystemAdapter, Platform, TFile } from "obsidian";
 import type { App } from "obsidian";
 import { t } from "./i18n";
 import type { ProgressNotice } from "./progress-notice";
+import type { VideoEncoder } from "./settings";
 
 type ExecFile = typeof import("node:child_process").execFile;
 type FileSystem = typeof import("node:fs/promises");
@@ -16,6 +17,7 @@ export async function convertVideoToMp4(
   file: TFile,
   progress: ProgressNotice,
   configuredFfmpegPath: string,
+  videoEncoder: VideoEncoder,
 ): Promise<string> {
   if (!Platform.isDesktopApp) {
     throw new Error(t("convert.desktopOnly"));
@@ -52,7 +54,7 @@ export async function convertVideoToMp4(
     progress.update(5, t("convert.running"));
   }
   try {
-    await runFfmpeg(execFile, ffmpegPath, inputPath, temporaryPath, durationSeconds, (fraction) => {
+    await runFfmpeg(execFile, ffmpegPath, inputPath, temporaryPath, videoEncoder, durationSeconds, (fraction) => {
       progress.update(5 + fraction * 80, t("convert.running"));
     });
     const result = await fs.stat(temporaryPath);
@@ -92,6 +94,7 @@ async function runFfmpeg(
   ffmpegPath: string,
   inputPath: string,
   outputPath: string,
+  videoEncoder: VideoEncoder,
   durationSeconds: number | null,
   onProgress: (fraction: number) => void,
 ): Promise<void> {
@@ -99,10 +102,8 @@ async function runFfmpeg(
     "-i", inputPath,
     "-map", "0:v:0",
     "-map", "0:a:0?",
-    "-c:v", "libx264",
-    "-preset", "medium",
-    "-crf", "23",
-    "-pix_fmt", "yuv420p",
+    "-c:v", videoEncoder,
+    ...videoEncoderArguments(videoEncoder),
     "-c:a", "aac",
     "-b:a", "128k",
     "-movflags", "+faststart",
@@ -124,6 +125,29 @@ async function runFfmpeg(
       .slice(-4)
       .join(" ") || "FFmpeg error";
     throw new Error(t("convert.failed", { code: failure.code ?? "?", details }));
+  }
+}
+
+function videoEncoderArguments(encoder: VideoEncoder): string[] {
+  switch (encoder) {
+    case "libx264":
+      return ["-preset", "medium", "-crf", "23", "-pix_fmt", "yuv420p"];
+    case "h264_videotoolbox":
+      return ["-q:v", "65", "-pix_fmt", "yuv420p"];
+    case "h264_nvenc":
+      return ["-preset", "p4", "-cq", "23", "-b:v", "0", "-pix_fmt", "yuv420p"];
+    case "h264_qsv":
+      return ["-preset", "medium", "-global_quality", "23", "-pix_fmt", "yuv420p"];
+    case "h264_amf":
+      return [
+        "-quality", "balanced",
+        "-rc", "cqp",
+        "-qp_i", "23",
+        "-qp_p", "23",
+        "-pix_fmt", "yuv420p",
+      ];
+    case "h264_vaapi":
+      return ["-vf", "format=nv12,hwupload", "-global_quality", "23"];
   }
 }
 

@@ -1,6 +1,11 @@
 import { Notice, Platform, Plugin, TFile } from "obsidian";
 import { RemoteFile, parseRemoteFile, serializeRemoteFile } from "./remote-file";
-import { WebDavArchiveSettingTab, WebDavArchiveSettings, DEFAULT_SETTINGS } from "./settings";
+import {
+  WebDavArchiveSettingTab,
+  WebDavArchiveSettings,
+  DEFAULT_SETTINGS,
+  isVideoEncoder,
+} from "./settings";
 import { WebDavClient } from "./webdav";
 import { getMimeType } from "./mime";
 import { ProgressNotice } from "./progress-notice";
@@ -81,6 +86,7 @@ export default class WebDavArchivePlugin extends Plugin {
       username: saved?.username ?? DEFAULT_SETTINGS.username,
       password: saved?.password ?? DEFAULT_SETTINGS.password,
       ffmpegPath: saved?.ffmpegPath ?? DEFAULT_SETTINGS.ffmpegPath,
+      videoEncoder: isVideoEncoder(saved?.videoEncoder) ? saved.videoEncoder : DEFAULT_SETTINGS.videoEncoder,
     };
 
     if (legacyWebDavUrl) {
@@ -198,7 +204,13 @@ export default class WebDavArchivePlugin extends Plugin {
     await this.runExclusive(
       file.path,
       t("convert.title", { name: file.name }),
-      (progress) => convertVideoToMp4(this.app, file, progress, this.settings.ffmpegPath),
+      (progress) => convertVideoToMp4(
+        this.app,
+        file,
+        progress,
+        this.settings.ffmpegPath,
+        this.settings.videoEncoder,
+      ),
     );
   }
 

@@ -8,6 +8,22 @@ export interface WebDavArchiveSettings {
   username: string;
   password: string;
   ffmpegPath: string;
+  videoEncoder: VideoEncoder;
+}
+
+export const VIDEO_ENCODERS = [
+  "h264_videotoolbox",
+  "h264_nvenc",
+  "h264_qsv",
+  "h264_amf",
+  "h264_vaapi",
+  "libx264",
+] as const;
+
+export type VideoEncoder = typeof VIDEO_ENCODERS[number];
+
+export function isVideoEncoder(value: unknown): value is VideoEncoder {
+  return typeof value === "string" && (VIDEO_ENCODERS as readonly string[]).includes(value);
 }
 
 export const DEFAULT_SETTINGS: WebDavArchiveSettings = {
@@ -16,6 +32,7 @@ export const DEFAULT_SETTINGS: WebDavArchiveSettings = {
   username: "",
   password: "",
   ffmpegPath: "",
+  videoEncoder: "libx264",
 };
 
 export class WebDavArchiveSettingTab extends PluginSettingTab {
@@ -74,6 +91,22 @@ export class WebDavArchiveSettingTab extends PluginSettingTab {
       });
 
     if (Platform.isDesktopApp) {
+      new Setting(containerEl)
+        .setName(t("settings.videoEncoder"))
+        .setDesc(t("settings.videoEncoderDescription"))
+        .addDropdown((dropdown) => {
+          for (const encoder of VIDEO_ENCODERS) {
+            dropdown.addOption(encoder, encoder);
+          }
+          dropdown
+            .setValue(this.archivePlugin.settings.videoEncoder)
+            .onChange(async (value) => {
+              if (!isVideoEncoder(value)) return;
+              this.archivePlugin.settings.videoEncoder = value;
+              await this.archivePlugin.saveSettings();
+            });
+        });
+
       new Setting(containerEl)
         .setName(t("settings.ffmpegPath"))
         .setDesc(t("settings.ffmpegPathDescription"))
