@@ -1,4 +1,5 @@
 import { FileView, TFile, WorkspaceLeaf } from "obsidian";
+import type { IconName } from "obsidian";
 import type WebDavArchivePlugin from "./main";
 import { parseRemoteFile } from "./remote-file";
 
@@ -13,6 +14,10 @@ export class RemoteFileView extends FileView {
 
   getViewType(): string {
     return VIEW_TYPE_REMOTE_FILE;
+  }
+
+  getIcon(): IconName {
+    return "globe-2";
   }
 
   getDisplayText(): string {

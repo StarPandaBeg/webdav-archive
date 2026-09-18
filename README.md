@@ -14,6 +14,7 @@ them later.
 - Adds **Restore from WebDAV** to `.remote` files.
 - Opens `.remote` files in a built-in information view instead of handing them
   to the operating system.
+- Marks `.remote` files with a globe icon in the file explorer and viewer tab.
 - Verifies a restored download using its size and SHA-256 checksum.
 
 The source file is deleted only after the upload is verified and the `.remote`
