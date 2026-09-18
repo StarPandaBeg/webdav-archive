@@ -17,6 +17,8 @@ them later.
 - Marks `.remote` files with a globe icon in the file explorer and viewer tab.
 - Uses Obsidian-native viewer controls and provides Russian UI localization
   with an English fallback.
+- Previews public `image/*`, `video/*`, and `audio/*` files directly in the
+  `.remote` viewer.
 - Verifies a restored download using its size and SHA-256 checksum.
 
 The source file is deleted only after the upload is verified and the `.remote`
