@@ -44,9 +44,11 @@ Open **Settings → Community plugins → WebDAV Archive** and configure:
 Credentials are stored locally in Obsidian's plugin data and are never written
 to `.remote` files.
 
-Video conversion is available in Obsidian Desktop and requires `ffmpeg` to be
-installed and available in the application's `PATH`. Non-MP4 inputs are replaced
-with a same-basename `.mp4` file; Obsidian updates vault links during the rename.
+Video conversion is available in Obsidian Desktop and requires `ffmpeg`. The
+plugin checks the application's `PATH`, common Homebrew/system locations, and
+the user's login shell. An absolute executable path can also be set explicitly
+in the plugin settings. Non-MP4 inputs are replaced with a same-basename `.mp4`
+file; Obsidian updates vault links during the rename.
 
 Both URL bases receive exactly the same relative path. For example:
 

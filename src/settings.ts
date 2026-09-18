@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, Setting } from "obsidian";
+import { App, Platform, PluginSettingTab, Setting } from "obsidian";
 import type WebDavArchivePlugin from "./main";
 import { t } from "./i18n";
 
@@ -7,6 +7,7 @@ export interface WebDavArchiveSettings {
   publicUrl: string;
   username: string;
   password: string;
+  ffmpegPath: string;
 }
 
 export const DEFAULT_SETTINGS: WebDavArchiveSettings = {
@@ -14,6 +15,7 @@ export const DEFAULT_SETTINGS: WebDavArchiveSettings = {
   publicUrl: "",
   username: "",
   password: "",
+  ffmpegPath: "",
 };
 
 export class WebDavArchiveSettingTab extends PluginSettingTab {
@@ -70,5 +72,20 @@ export class WebDavArchiveSettingTab extends PluginSettingTab {
           await this.archivePlugin.saveSettings();
         });
       });
+
+    if (Platform.isDesktopApp) {
+      new Setting(containerEl)
+        .setName(t("settings.ffmpegPath"))
+        .setDesc(t("settings.ffmpegPathDescription"))
+        .addText((text) =>
+          text
+            .setPlaceholder("/opt/homebrew/bin/ffmpeg")
+            .setValue(this.archivePlugin.settings.ffmpegPath)
+            .onChange(async (value) => {
+              this.archivePlugin.settings.ffmpegPath = value.trim();
+              await this.archivePlugin.saveSettings();
+            }),
+        );
+    }
   }
 }

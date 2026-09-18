@@ -80,6 +80,7 @@ export default class WebDavArchivePlugin extends Plugin {
       publicUrl: saved?.publicUrl ?? DEFAULT_SETTINGS.publicUrl,
       username: saved?.username ?? DEFAULT_SETTINGS.username,
       password: saved?.password ?? DEFAULT_SETTINGS.password,
+      ffmpegPath: saved?.ffmpegPath ?? DEFAULT_SETTINGS.ffmpegPath,
     };
 
     if (legacyWebDavUrl) {
@@ -197,7 +198,7 @@ export default class WebDavArchivePlugin extends Plugin {
     await this.runExclusive(
       file.path,
       t("convert.title", { name: file.name }),
-      (progress) => convertVideoToMp4(this.app, file, progress),
+      (progress) => convertVideoToMp4(this.app, file, progress, this.settings.ffmpegPath),
     );
   }
 
