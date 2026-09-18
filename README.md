@@ -9,7 +9,7 @@ them later.
 - Shows archive and restore progress in a persistent Obsidian notification.
 - Uploads the file under a random UUID and verifies the uploaded size.
 - Replaces the local file with a JSON marker named `<original name>.remote`.
-- Stores the shared relative path, generated public URL, original name and path,
+- Stores the shared relative path, generated public `fileUrl`, original name and path,
   MIME type, byte size, SHA-256 checksum, and archive date in the marker.
 - Adds **Restore from WebDAV** to `.remote` files.
 - Opens `.remote` files in a built-in information view instead of handing them
@@ -46,8 +46,9 @@ Upload: https://cloud.example.com/dav/files/user/obsidian-archive/550e8400-e29b-
 Public: https://cdn.example.com/files/obsidian-archive/550e8400-e29b-41d4-a716-446655440000
 ```
 
-The `.remote` format is currently version 2 and does not support older marker
-formats.
+New version 2 markers contain both `fileUrl` and the older `publicUrl` alias.
+The plugin also reads version 2 markers that contain only either field and can
+restore legacy version 1 markers containing a full private WebDAV `url`.
 
 ## Development
 

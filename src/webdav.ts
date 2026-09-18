@@ -3,15 +3,17 @@ import type { WebDavArchiveSettings } from "./settings";
 
 export interface UploadedObject {
   relativePath: string;
-  publicUrl: string;
+  fileUrl: string;
 }
 
 export class WebDavClient {
   constructor(private readonly settings: WebDavArchiveSettings) {}
 
-  validateConfiguration(): void {
+  validateConfiguration(requirePublicUrl = true): void {
     this.webDavBaseUrl();
-    this.publicBaseUrl();
+    if (requirePublicUrl) {
+      this.publicBaseUrl();
+    }
   }
 
   async upload(data: ArrayBuffer, mimeType: string): Promise<UploadedObject> {
@@ -54,7 +56,7 @@ export class WebDavClient {
 
     return {
       relativePath,
-      publicUrl: this.publicUrl(relativePath),
+      fileUrl: this.publicUrl(relativePath),
     };
   }
 
@@ -81,6 +83,25 @@ export class WebDavClient {
     if (!isSuccess(response.status) && response.status !== 404) {
       throw new Error(`Remote cleanup failed with HTTP ${response.status}`);
     }
+  }
+
+  relativePathFromLegacyUrl(remoteUrl: string): string {
+    const base = this.webDavBaseUrl();
+    const remote = parseHttpUrl(remoteUrl, "Invalid URL in the legacy .remote file");
+    const basePath = normalizedBasePath(base);
+    const prefix = basePath ? `${basePath}/` : "/";
+
+    if (remote.origin !== base.origin || !remote.pathname.startsWith(prefix)) {
+      throw new Error("The legacy .remote URL does not belong to the configured WebDAV URL");
+    }
+
+    const encodedPath = remote.pathname.slice(prefix.length);
+    return validateRelativePath(
+      encodedPath
+        .split("/")
+        .map((segment) => decodeURIComponent(segment))
+        .join("/"),
+    );
   }
 
   private webDavUrl(relativePath: string): string {

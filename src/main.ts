@@ -57,8 +57,23 @@ export default class WebDavArchivePlugin extends Plugin {
   }
 
   private async loadSettings(): Promise<void> {
-    const saved = (await this.loadData()) as Partial<WebDavArchiveSettings> | null;
-    this.settings = { ...DEFAULT_SETTINGS, ...(saved ?? {}) };
+    const saved = (await this.loadData()) as LegacySavedSettings | null;
+    const legacyWebDavUrl =
+      !saved?.webDavUrl && saved?.serverUrl
+        ? appendLegacyFolder(saved.serverUrl, saved.remoteFolder)
+        : "";
+
+    this.settings = {
+      ...DEFAULT_SETTINGS,
+      webDavUrl: saved?.webDavUrl ?? legacyWebDavUrl,
+      publicUrl: saved?.publicUrl ?? DEFAULT_SETTINGS.publicUrl,
+      username: saved?.username ?? DEFAULT_SETTINGS.username,
+      password: saved?.password ?? DEFAULT_SETTINGS.password,
+    };
+
+    if (legacyWebDavUrl) {
+      await this.saveSettings();
+    }
   }
 
   private async archive(file: TFile): Promise<void> {
@@ -83,7 +98,8 @@ export default class WebDavArchivePlugin extends Plugin {
         version: 2,
         storage: "webdav",
         relativePath: uploaded.relativePath,
-        publicUrl: uploaded.publicUrl,
+        publicUrl: uploaded.fileUrl,
+        fileUrl: uploaded.fileUrl,
         originalName: file.name,
         originalPath: file.path,
         mimeType,
@@ -114,7 +130,11 @@ export default class WebDavArchivePlugin extends Plugin {
       progress.update(5, "Reading remote marker…");
       const metadata = parseRemoteFile(await this.app.vault.read(marker));
       progress.update(10, "Checking configuration…");
-      const client = this.createClient();
+      const client = this.createClient(false);
+      const relativePath =
+        metadata.version === 1
+          ? client.relativePathFromLegacyUrl(metadata.url)
+          : metadata.relativePath;
 
       const targetPath = metadata.originalPath || marker.path.slice(0, -`.${REMOTE_EXTENSION}`.length);
       const existing = this.app.vault.getAbstractFileByPath(targetPath);
@@ -132,14 +152,14 @@ export default class WebDavArchivePlugin extends Plugin {
 
         // A previous restore downloaded the file but could not finish remote cleanup.
         progress.indeterminate("Finishing WebDAV cleanup…");
-        await client.delete(metadata.relativePath);
+        await client.delete(relativePath);
         progress.update(95, "Removing remote marker…");
         await this.app.vault.delete(marker);
         return `Restored ${metadata.originalName}`;
       }
 
       progress.indeterminate("Downloading from WebDAV…");
-      const data = await client.download(metadata.relativePath);
+      const data = await client.download(relativePath);
       progress.update(68, "Checking downloaded size…");
       if (data.byteLength !== metadata.size) {
         throw new Error(`Downloaded size does not match: expected ${metadata.size}, got ${data.byteLength}`);
@@ -155,16 +175,16 @@ export default class WebDavArchivePlugin extends Plugin {
       // If either cleanup operation fails, the restored local file and marker are
       // intentionally kept. Running Restore again safely retries the cleanup.
       progress.indeterminate("Removing WebDAV object…");
-      await client.delete(metadata.relativePath);
+      await client.delete(relativePath);
       progress.update(96, "Removing remote marker…");
       await this.app.vault.delete(marker);
       return `Restored ${metadata.originalName}`;
     });
   }
 
-  private createClient(): WebDavClient {
+  private createClient(requirePublicUrl = true): WebDavClient {
     const client = new WebDavClient(this.settings);
-    client.validateConfiguration();
+    client.validateConfiguration(requirePublicUrl);
     return client;
   }
 
@@ -196,8 +216,23 @@ interface ViewRegistry {
   unregisterExtensions(extensions: string[]): void;
 }
 
+interface LegacySavedSettings extends Partial<WebDavArchiveSettings> {
+  serverUrl?: string;
+  remoteFolder?: string;
+}
+
 function viewRegistry(app: WebDavArchivePlugin["app"]): ViewRegistry {
   return (app as unknown as { viewRegistry: ViewRegistry }).viewRegistry;
+}
+
+function appendLegacyFolder(serverUrl: string, remoteFolder?: string): string {
+  const folder = (remoteFolder ?? "")
+    .split("/")
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+    .map(encodeURIComponent)
+    .join("/");
+  return folder ? `${serverUrl.replace(/\/+$/, "")}/${folder}` : serverUrl;
 }
 
 async function sha256(data: ArrayBuffer): Promise<string> {
