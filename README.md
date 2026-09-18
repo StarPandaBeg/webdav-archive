@@ -21,6 +21,8 @@ them later.
   `.remote` viewer.
 - Renders public Markdown files with Obsidian's Markdown renderer and displays
   plain text files in a read-only text view.
+- Converts local videos to H.264/AAC MP4 from the file context menu and safely
+  replaces the original only after FFmpeg succeeds.
 - Verifies a restored download using its size and SHA-256 checksum.
 
 The source file is deleted only after the upload is verified and the `.remote`
@@ -41,6 +43,10 @@ Open **Settings → Community plugins → WebDAV Archive** and configure:
 
 Credentials are stored locally in Obsidian's plugin data and are never written
 to `.remote` files.
+
+Video conversion is available in Obsidian Desktop and requires `ffmpeg` to be
+installed and available in the application's `PATH`. Non-MP4 inputs are replaced
+with a same-basename `.mp4` file; Obsidian updates vault links during the rename.
 
 Both URL bases receive exactly the same relative path. For example:
 

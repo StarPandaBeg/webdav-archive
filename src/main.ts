@@ -1,4 +1,4 @@
-import { Notice, Plugin, TFile } from "obsidian";
+import { Notice, Platform, Plugin, TFile } from "obsidian";
 import { RemoteFile, parseRemoteFile, serializeRemoteFile } from "./remote-file";
 import { WebDavArchiveSettingTab, WebDavArchiveSettings, DEFAULT_SETTINGS } from "./settings";
 import { WebDavClient } from "./webdav";
@@ -6,6 +6,7 @@ import { getMimeType } from "./mime";
 import { ProgressNotice } from "./progress-notice";
 import { RemoteFileView, VIEW_TYPE_REMOTE_FILE } from "./remote-file-view";
 import { t } from "./i18n";
+import { convertVideoToMp4 } from "./video-converter";
 
 const REMOTE_EXTENSION = "remote";
 
@@ -41,6 +42,15 @@ export default class WebDavArchivePlugin extends Plugin {
             .setIcon("archive")
             .onClick(() => void this.archive(file)),
         );
+
+        if (Platform.isDesktopApp && getMimeType(file.extension).startsWith("video/")) {
+          menu.addItem((item) =>
+            item
+              .setTitle(t("menu.convertVideo"))
+              .setIcon("file-video")
+              .onClick(() => void this.convertVideo(file)),
+          );
+        }
       }),
     );
   }
@@ -181,6 +191,14 @@ export default class WebDavArchivePlugin extends Plugin {
       await this.app.vault.delete(marker);
       return t("restore.complete", { name: metadata.originalName });
     });
+  }
+
+  private async convertVideo(file: TFile): Promise<void> {
+    await this.runExclusive(
+      file.path,
+      t("convert.title", { name: file.name }),
+      (progress) => convertVideoToMp4(this.app, file, progress),
+    );
   }
 
   private createClient(requirePublicUrl = true): WebDavClient {

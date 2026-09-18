@@ -9,8 +9,8 @@
     "strict": true,
     "importHelpers": true,
     "isolatedModules": true,
+    "types": ["node"],
     "lib": ["ES2018", "DOM"]
   },
   "include": ["src/**/*.ts"]
 }
-
