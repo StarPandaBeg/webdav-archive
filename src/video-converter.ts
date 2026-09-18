@@ -16,11 +16,13 @@ export async function convertVideoToMp4(app: App, file: TFile, progress: Progres
     throw new Error(t("convert.targetExists", { path: outputVaultPath }));
   }
 
-  const [{ spawn }, fs, path] = await Promise.all([
-    import("node:child_process"),
-    import("node:fs/promises"),
-    import("node:path"),
-  ]);
+  // Obsidian's desktop plugin runtime is CommonJS. ESM import() of Node
+  // built-ins fails in its renderer with "Failed to fetch dynamically imported
+  // module", so load them lazily through the bundle's CommonJS require instead.
+  // This code path is never reached on mobile.
+  const { spawn } = require("node:child_process") as typeof import("node:child_process");
+  const fs = require("node:fs/promises") as typeof import("node:fs/promises");
+  const path = require("node:path") as typeof import("node:path");
   const adapter = app.vault.adapter;
   const inputVaultPath = file.path;
   const inputPath = adapter.getFullPath(inputVaultPath);
