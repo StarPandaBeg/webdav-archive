@@ -1,0 +1,25 @@
+{
+  "name": "obsidian-webdav-archive",
+  "version": "0.1.0",
+  "description": "Obsidian plugin for archiving vault files in WebDAV storage",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "tsc --noEmit --skipLibCheck && node esbuild.config.mjs production",
+    "typecheck": "tsc --noEmit --skipLibCheck"
+  },
+  "keywords": [
+    "obsidian",
+    "webdav",
+    "archive"
+  ],
+  "author": "StarPandaBeg",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "esbuild": "0.28.2",
+    "obsidian": "latest",
+    "tslib": "2.4.0",
+    "typescript": "^7.0.2"
+  }
+}
