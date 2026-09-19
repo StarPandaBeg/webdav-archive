@@ -7,6 +7,7 @@ import { ProgressNotice } from "./progress-notice";
 import { RemoteFileView, VIEW_TYPE_REMOTE_FILE } from "./remote-file-view";
 import { t } from "./i18n";
 import { convertVideoToMp4 } from "./video-converter";
+import { updateLinksForArchive, updateLinksForRestore } from "./link-updater";
 
 const REMOTE_EXTENSION = "remote";
 
@@ -156,6 +157,8 @@ export default class WebDavArchivePlugin extends Plugin {
       let marker: TFile | null = null;
       try {
         marker = await this.app.vault.create(markerPath, serializeRemoteFile(metadata));
+        progress.update(88, t("archive.updatingLinks"));
+        await updateLinksForArchive(this.app, file);
         progress.update(94, t("archive.removingOriginal"));
         await this.app.vault.delete(file);
       } catch (error) {
@@ -201,6 +204,8 @@ export default class WebDavArchivePlugin extends Plugin {
         }
 
         // A previous restore downloaded the file but could not finish remote cleanup.
+        progress.update(88, t("restore.updatingLinks"));
+        await updateLinksForRestore(this.app, marker, targetPath);
         progress.indeterminate(t("restore.finishingCleanup"));
         await provider.delete(relativePath);
         progress.update(95, t("restore.removingMarker"));
@@ -231,6 +236,9 @@ export default class WebDavArchivePlugin extends Plugin {
 
       progress.update(84, t("restore.writing"));
       await this.app.vault.createBinary(targetPath, data);
+
+      progress.update(90, t("restore.updatingLinks"));
+      await updateLinksForRestore(this.app, marker, targetPath);
 
       // If either cleanup operation fails, the restored local file and marker are
       // intentionally kept. Running Restore again safely retries the cleanup.
