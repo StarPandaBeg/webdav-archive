@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, Setting } from "obsidian";
+import { App, PluginSettingTab, Setting, type SettingDefinitionItem } from "obsidian";
 import type WebDavArchivePlugin from "./main";
 import type { StorageType } from "./storage/types";
 import { t } from "./i18n";
@@ -48,233 +48,218 @@ export class WebDavArchiveSettingTab extends PluginSettingTab {
     super(app, archivePlugin);
   }
 
-  display(): void {
-    const { containerEl } = this;
-    containerEl.empty();
+  override getControlValue(key: string): unknown {
+    return (this.archivePlugin.settings as unknown as Record<string, unknown>)[key];
+  }
 
-    new Setting(containerEl)
-      .setName(t("settings.storageType"))
-      .setDesc(t("settings.storageTypeDescription"))
-      .addDropdown((dropdown) =>
-        dropdown
-          .addOption("webdav", t("settings.storageTypeGeneric"))
-          .addOption("nextcloud", t("settings.storageTypeNextcloud"))
-          .addOption("s3", t("settings.storageTypeS3"))
-          .setValue(this.archivePlugin.settings.storageType)
-          .onChange(async (value) => {
-            this.archivePlugin.settings.storageType = value as StorageType;
-            await this.archivePlugin.saveSettings();
-            this.display();
-          }),
-      );
+  override async setControlValue(key: string, value: unknown): Promise<void> {
+    const settings = this.archivePlugin.settings as unknown as Record<string, unknown>;
 
-    if (this.archivePlugin.settings.storageType === "s3") {
-      new Setting(containerEl)
-        .setName(t("settings.s3Endpoint"))
-        .setDesc(t("settings.s3EndpointDescription"))
-        .addText((text) =>
-          text
-            .setPlaceholder("https://s3.amazonaws.com")
-            .setValue(this.archivePlugin.settings.s3Endpoint)
-            .onChange(async (value) => {
-              this.archivePlugin.settings.s3Endpoint = value.trim();
+    if (key === "s3PresignedExpiration") {
+      const num = Number(value);
+      settings[key] = !isNaN(num) && num > 0 ? num : 3600;
+    } else if (typeof value === "string") {
+      const trimKeys = new Set([
+        "webDavUrl",
+        "publicUrl",
+        "nextcloudUrl",
+        "s3Endpoint",
+        "s3Region",
+        "s3Bucket",
+        "s3AccessKeyId",
+        "s3SecretAccessKey",
+        "s3RemotePrefix",
+      ]);
+      settings[key] = trimKeys.has(key) ? value.trim() : value;
+    } else {
+      settings[key] = value;
+    }
+
+    await this.archivePlugin.saveSettings();
+
+    if (key === "storageType") {
+      this.refreshDomState();
+    } else if (key === "enablePreview") {
+      this.archivePlugin.refreshRemoteViews();
+    } else if (key === "showGlobeIcon") {
+      this.archivePlugin.updateGlobeIconSetting();
+    }
+  }
+
+  override getSettingDefinitions(): SettingDefinitionItem[] {
+    const isS3 = () => this.archivePlugin.settings.storageType === "s3";
+    const isNextcloud = () => this.archivePlugin.settings.storageType === "nextcloud";
+    const isWebDav = () => this.archivePlugin.settings.storageType === "webdav";
+    const isAuthRequired = () => this.archivePlugin.settings.storageType !== "s3";
+
+    return [
+      {
+        name: t("settings.storageType"),
+        desc: t("settings.storageTypeDescription"),
+        control: {
+          key: "storageType",
+          type: "dropdown",
+          options: {
+            webdav: t("settings.storageTypeGeneric"),
+            nextcloud: t("settings.storageTypeNextcloud"),
+            s3: t("settings.storageTypeS3"),
+          },
+        },
+      },
+      // Generic WebDAV settings
+      {
+        name: t("settings.webDavUrl"),
+        desc: t("settings.webDavUrlDescription"),
+        visible: isWebDav,
+        control: {
+          key: "webDavUrl",
+          type: "text",
+          placeholder: "https://cloud.example.com/webdav",
+        },
+      },
+      {
+        name: t("settings.publicUrl"),
+        desc: t("settings.publicUrlDescription"),
+        visible: isWebDav,
+        control: {
+          key: "publicUrl",
+          type: "text",
+          placeholder: "https://files.example.com",
+        },
+      },
+      // Nextcloud settings
+      {
+        name: t("settings.nextcloudUrl"),
+        desc: t("settings.nextcloudUrlDescription"),
+        visible: isNextcloud,
+        control: {
+          key: "nextcloudUrl",
+          type: "text",
+          placeholder: "https://cloud.example.com",
+        },
+      },
+      // Common WebDAV / Nextcloud credentials
+      {
+        name: t("settings.username"),
+        visible: isAuthRequired,
+        control: {
+          key: "username",
+          type: "text",
+        },
+      },
+      {
+        name: t("settings.password"),
+        desc: t("settings.passwordDescription"),
+        visible: isAuthRequired,
+        render: (setting) => {
+          setting.addText((text) => {
+            text.inputEl.type = "password";
+            text.setValue(this.archivePlugin.settings.password).onChange(async (value) => {
+              this.archivePlugin.settings.password = value;
               await this.archivePlugin.saveSettings();
-            }),
-        );
-
-      new Setting(containerEl)
-        .setName(t("settings.s3Region"))
-        .setDesc(t("settings.s3RegionDescription"))
-        .addText((text) =>
-          text
-            .setPlaceholder("us-east-1")
-            .setValue(this.archivePlugin.settings.s3Region)
-            .onChange(async (value) => {
-              this.archivePlugin.settings.s3Region = value.trim();
-              await this.archivePlugin.saveSettings();
-            }),
-        );
-
-      new Setting(containerEl)
-        .setName(t("settings.s3Bucket"))
-        .setDesc(t("settings.s3BucketDescription"))
-        .addText((text) =>
-          text
-            .setPlaceholder("my-bucket")
-            .setValue(this.archivePlugin.settings.s3Bucket)
-            .onChange(async (value) => {
-              this.archivePlugin.settings.s3Bucket = value.trim();
-              await this.archivePlugin.saveSettings();
-            }),
-        );
-
-      new Setting(containerEl)
-        .setName(t("settings.s3AccessKeyId"))
-        .addText((text) =>
-          text
-            .setValue(this.archivePlugin.settings.s3AccessKeyId)
-            .onChange(async (value) => {
-              this.archivePlugin.settings.s3AccessKeyId = value.trim();
-              await this.archivePlugin.saveSettings();
-            }),
-        );
-
-      new Setting(containerEl)
-        .setName(t("settings.s3SecretAccessKey"))
-        .addText((text) => {
-          text.inputEl.type = "password";
-          text
-            .setValue(this.archivePlugin.settings.s3SecretAccessKey)
-            .onChange(async (value) => {
+            });
+          });
+        },
+      },
+      // S3 settings
+      {
+        name: t("settings.s3Endpoint"),
+        desc: t("settings.s3EndpointDescription"),
+        visible: isS3,
+        control: {
+          key: "s3Endpoint",
+          type: "text",
+          placeholder: "https://s3.amazonaws.com",
+        },
+      },
+      {
+        name: t("settings.s3Region"),
+        desc: t("settings.s3RegionDescription"),
+        visible: isS3,
+        control: {
+          key: "s3Region",
+          type: "text",
+          placeholder: "us-east-1",
+        },
+      },
+      {
+        name: t("settings.s3Bucket"),
+        desc: t("settings.s3BucketDescription"),
+        visible: isS3,
+        control: {
+          key: "s3Bucket",
+          type: "text",
+          placeholder: "my-bucket",
+        },
+      },
+      {
+        name: t("settings.s3AccessKeyId"),
+        visible: isS3,
+        control: {
+          key: "s3AccessKeyId",
+          type: "text",
+        },
+      },
+      {
+        name: t("settings.s3SecretAccessKey"),
+        visible: isS3,
+        render: (setting) => {
+          setting.addText((text) => {
+            text.inputEl.type = "password";
+            text.setValue(this.archivePlugin.settings.s3SecretAccessKey).onChange(async (value) => {
               this.archivePlugin.settings.s3SecretAccessKey = value.trim();
               await this.archivePlugin.saveSettings();
             });
-        });
-
-      new Setting(containerEl)
-        .setName(t("settings.s3RemotePrefix"))
-        .setDesc(t("settings.s3RemotePrefixDescription"))
-        .addText((text) =>
-          text
-            .setPlaceholder("archive")
-            .setValue(this.archivePlugin.settings.s3RemotePrefix)
-            .onChange(async (value) => {
-              this.archivePlugin.settings.s3RemotePrefix = value.trim();
-              await this.archivePlugin.saveSettings();
-            }),
-        );
-
-      new Setting(containerEl)
-        .setName(t("settings.s3ForcePathStyle"))
-        .setDesc(t("settings.s3ForcePathStyleDescription"))
-        .addToggle((toggle) =>
-          toggle
-            .setValue(this.archivePlugin.settings.s3ForcePathStyle)
-            .onChange(async (value) => {
-              this.archivePlugin.settings.s3ForcePathStyle = value;
-              await this.archivePlugin.saveSettings();
-            }),
-        );
-
-      new Setting(containerEl)
-        .setName(t("settings.s3PresignedExpiration"))
-        .setDesc(t("settings.s3PresignedExpirationDescription"))
-        .addText((text) =>
-          text
-            .setPlaceholder("3600")
-            .setValue(String(this.archivePlugin.settings.s3PresignedExpiration || 3600))
-            .onChange(async (value) => {
-              const parsed = Number(value.trim());
-              this.archivePlugin.settings.s3PresignedExpiration =
-                !isNaN(parsed) && parsed > 0 ? parsed : 3600;
-              await this.archivePlugin.saveSettings();
-            }),
-        );
-    } else if (this.archivePlugin.settings.storageType === "nextcloud") {
-      new Setting(containerEl)
-        .setName(t("settings.nextcloudUrl"))
-        .setDesc(t("settings.nextcloudUrlDescription"))
-        .addText((text) =>
-          text
-            .setPlaceholder("https://cloud.example.com")
-            .setValue(this.archivePlugin.settings.nextcloudUrl)
-            .onChange(async (value) => {
-              this.archivePlugin.settings.nextcloudUrl = value.trim();
-              await this.archivePlugin.saveSettings();
-            }),
-        );
-
-      new Setting(containerEl)
-        .setName(t("settings.username"))
-        .addText((text) =>
-          text.setValue(this.archivePlugin.settings.username).onChange(async (value) => {
-            this.archivePlugin.settings.username = value;
-            await this.archivePlugin.saveSettings();
-          }),
-        );
-
-      new Setting(containerEl)
-        .setName(t("settings.password"))
-        .setDesc(t("settings.passwordDescription"))
-        .addText((text) => {
-          text.inputEl.type = "password";
-          text.setValue(this.archivePlugin.settings.password).onChange(async (value) => {
-            this.archivePlugin.settings.password = value;
-            await this.archivePlugin.saveSettings();
           });
-        });
-    } else {
-      new Setting(containerEl)
-        .setName(t("settings.webDavUrl"))
-        .setDesc(t("settings.webDavUrlDescription"))
-        .addText((text) =>
-          text
-            .setPlaceholder("https://cloud.example.com/webdav")
-            .setValue(this.archivePlugin.settings.webDavUrl)
-            .onChange(async (value) => {
-              this.archivePlugin.settings.webDavUrl = value.trim();
-              await this.archivePlugin.saveSettings();
-            }),
-        );
-
-      new Setting(containerEl)
-        .setName(t("settings.publicUrl"))
-        .setDesc(t("settings.publicUrlDescription"))
-        .addText((text) =>
-          text
-            .setPlaceholder("https://files.example.com")
-            .setValue(this.archivePlugin.settings.publicUrl)
-            .onChange(async (value) => {
-              this.archivePlugin.settings.publicUrl = value.trim();
-              await this.archivePlugin.saveSettings();
-            }),
-        );
-
-      new Setting(containerEl)
-        .setName(t("settings.username"))
-        .addText((text) =>
-          text.setValue(this.archivePlugin.settings.username).onChange(async (value) => {
-            this.archivePlugin.settings.username = value;
-            await this.archivePlugin.saveSettings();
-          }),
-        );
-
-      new Setting(containerEl)
-        .setName(t("settings.password"))
-        .setDesc(t("settings.passwordDescription"))
-        .addText((text) => {
-          text.inputEl.type = "password";
-          text.setValue(this.archivePlugin.settings.password).onChange(async (value) => {
-            this.archivePlugin.settings.password = value;
-            await this.archivePlugin.saveSettings();
-          });
-        });
-    }
-
-    new Setting(containerEl)
-      .setName(t("settings.enablePreview"))
-      .setDesc(t("settings.enablePreviewDescription"))
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.archivePlugin.settings.enablePreview)
-          .onChange(async (value) => {
-            this.archivePlugin.settings.enablePreview = value;
-            await this.archivePlugin.saveSettings();
-            this.archivePlugin.refreshRemoteViews();
-          }),
-      );
-
-    new Setting(containerEl)
-      .setName(t("settings.showGlobeIcon"))
-      .setDesc(t("settings.showGlobeIconDescription"))
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.archivePlugin.settings.showGlobeIcon)
-          .onChange(async (value) => {
-            this.archivePlugin.settings.showGlobeIcon = value;
-            await this.archivePlugin.saveSettings();
-            this.archivePlugin.updateGlobeIconSetting();
-          }),
-      );
+        },
+      },
+      {
+        name: t("settings.s3RemotePrefix"),
+        desc: t("settings.s3RemotePrefixDescription"),
+        visible: isS3,
+        control: {
+          key: "s3RemotePrefix",
+          type: "text",
+          placeholder: "archive",
+        },
+      },
+      {
+        name: t("settings.s3ForcePathStyle"),
+        desc: t("settings.s3ForcePathStyleDescription"),
+        visible: isS3,
+        control: {
+          key: "s3ForcePathStyle",
+          type: "toggle",
+        },
+      },
+      {
+        name: t("settings.s3PresignedExpiration"),
+        desc: t("settings.s3PresignedExpirationDescription"),
+        visible: isS3,
+        control: {
+          key: "s3PresignedExpiration",
+          type: "number",
+          placeholder: "3600",
+          min: 1,
+        },
+      },
+      // General settings
+      {
+        name: t("settings.enablePreview"),
+        desc: t("settings.enablePreviewDescription"),
+        control: {
+          key: "enablePreview",
+          type: "toggle",
+        },
+      },
+      {
+        name: t("settings.showGlobeIcon"),
+        desc: t("settings.showGlobeIconDescription"),
+        control: {
+          key: "showGlobeIcon",
+          type: "toggle",
+        },
+      },
+    ];
   }
 }

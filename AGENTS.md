@@ -37,7 +37,7 @@ The remote object and `.remote` marker are **ONLY** deleted after local restorat
 4. Write restored file into the vault via `app.vault.createBinary`.
 5. Update all internal Obsidian links and frontmatter from `[[file.remote]]` to `[[file]]` via `updateLinksForRestore`.
 6. Delete the remote object from storage (`provider.delete(relativePath)`).
-7. Delete the `.remote` marker file via `app.vault.delete`.
+7. Delete the `.remote` marker file via `app.vault.delete(marker)`. (Do NOT add `eslint-disable` comments; community plugin review treats disabling `obsidianmd/prefer-file-manager-trash-file` as a fatal error, whereas the warning itself is acceptable for internal marker cleanup).
 *Note:* If steps 6 or 7 fail, the restored local file is preserved. Running "Restore" again will safely detect the existing valid local file and retry the cleanup idempotently.
 
 ### C. Remote Deletion Invariant ("Удалить из удалённого хранилища")
@@ -145,8 +145,12 @@ export interface WebDavArchiveApi {
    - Globe icon styling on `.remote` files toggled via `.webdav-archive-show-globe` on `document.body`.
    - Viewer header actions: `Refresh preview`, `Copy direct URL`, `Restore file`.
 3. **Modals & Notices**:
-   - Use `confirmAction(this.app, { title, message, warning?, confirmText? })` for destructive confirmations.
+   - Use `confirmAction(this.app, { title, message, warning?, confirmText? })` for destructive confirmations (using `setDestructive`).
    - Long running tasks must use `ProgressNotice`.
+4. **Declarative Settings (Obsidian 1.13.0+)**:
+   - `WebDavArchiveSettingTab` uses `getSettingDefinitions()`, `getControlValue()`, and `setControlValue()`.
+   - Deprecated `display()` method is removed. `minAppVersion` is set to `1.13.0`.
+   - Password fields use `render` with input type `"password"`. Conditional sections use `visible: () => boolean` and trigger `this.refreshDomState()`.
 
 ---
 
