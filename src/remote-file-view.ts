@@ -32,7 +32,7 @@ export class RemoteFileView extends FileView {
   async onLoadFile(file: TFile): Promise<void> {
     this.resetContent();
 
-    let metadata;
+    let metadata: ParsedRemoteFile;
     try {
       metadata = parseRemoteFile(await this.app.vault.read(file));
     } catch (error) {
@@ -43,11 +43,50 @@ export class RemoteFileView extends FileView {
 
     this.originalName = metadata.originalName;
 
-    if (metadata.version === 2 && this.renderMedia(metadata, file)) {
+    if (metadata.version === 1) {
+      this.renderInformation(metadata, file);
       return;
     }
 
-    if (metadata.version === 2 && (await this.renderText(metadata, file))) {
+    const mimeType = metadata.mimeType.toLowerCase();
+    const isMedia = mimeType.startsWith("image/") || mimeType.startsWith("video/") || mimeType.startsWith("audio/");
+    const textType = mimeType.split(";", 1)[0].trim();
+    const isText = textType === "text/markdown" || textType === "text/x-markdown" || textType === "text/plain";
+
+    if (!isMedia && !isText) {
+      this.renderInformation(metadata, file);
+      return;
+    }
+
+    const generation = this.renderGeneration;
+    const loading = this.contentEl.createDiv({
+      cls: "webdav-archive-text-loading",
+      text: t("view.loadingPreview"),
+    });
+
+    let fileUrl: string;
+    try {
+      const provider = this.archivePlugin.getStorageProvider(metadata.storage);
+      fileUrl = await provider.getFileUrl(metadata.relativePath);
+    } catch (error) {
+      if (this.file !== file || this.renderGeneration !== generation) {
+        return;
+      }
+      loading.remove();
+      this.renderInformation(metadata, file, error instanceof Error ? error.message : String(error));
+      return;
+    }
+
+    if (this.file !== file || this.renderGeneration !== generation) {
+      return;
+    }
+    loading.remove();
+
+    if (isMedia && this.renderMedia(metadata, file, fileUrl)) {
+      return;
+    }
+
+    if (isText && (await this.renderText(metadata, file, fileUrl))) {
       return;
     }
 
@@ -59,7 +98,7 @@ export class RemoteFileView extends FileView {
     this.releasePreview();
   }
 
-  private renderMedia(metadata: RemoteFile, marker: TFile): boolean {
+  private renderMedia(metadata: RemoteFile, marker: TFile, fileUrl: string): boolean {
     const mimeType = metadata.mimeType.toLowerCase();
     if (!mimeType.startsWith("image/") && !mimeType.startsWith("video/") && !mimeType.startsWith("audio/")) {
       return false;
@@ -79,7 +118,7 @@ export class RemoteFileView extends FileView {
     if (mimeType.startsWith("image/")) {
       const image = stage.createEl("img", {
         cls: "webdav-archive-media-image",
-        attr: { src: metadata.fileUrl, alt: metadata.originalName },
+        attr: { src: fileUrl, alt: metadata.originalName },
       });
       image.addEventListener("error", handleError, { once: true });
       return true;
@@ -90,7 +129,7 @@ export class RemoteFileView extends FileView {
       video.controls = true;
       video.preload = "metadata";
       video.playsInline = true;
-      video.src = metadata.fileUrl;
+      video.src = fileUrl;
       video.addEventListener("error", handleError, { once: true });
       this.mediaEl = video;
       return true;
@@ -100,13 +139,13 @@ export class RemoteFileView extends FileView {
     const audio = stage.createEl("audio", { cls: "webdav-archive-media-audio" });
     audio.controls = true;
     audio.preload = "metadata";
-    audio.src = metadata.fileUrl;
+    audio.src = fileUrl;
     audio.addEventListener("error", handleError, { once: true });
     this.mediaEl = audio;
     return true;
   }
 
-  private async renderText(metadata: RemoteFile, marker: TFile): Promise<boolean> {
+  private async renderText(metadata: RemoteFile, marker: TFile, fileUrl: string): Promise<boolean> {
     const mimeType = metadata.mimeType.toLowerCase().split(";", 1)[0].trim();
     const isMarkdown = mimeType === "text/markdown" || mimeType === "text/x-markdown";
     const isPlainText = mimeType === "text/plain";
@@ -124,7 +163,7 @@ export class RemoteFileView extends FileView {
 
     try {
       const response = await requestUrl({
-        url: metadata.fileUrl,
+        url: fileUrl,
         method: "GET",
         throw: false,
       });

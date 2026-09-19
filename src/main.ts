@@ -1,7 +1,7 @@
 import { Notice, Platform, Plugin, TFile } from "obsidian";
 import { RemoteFile, parseRemoteFile, serializeRemoteFile } from "./remote-file";
 import { WebDavArchiveSettingTab, WebDavArchiveSettings, DEFAULT_SETTINGS } from "./settings";
-import { WebDavClient } from "./webdav";
+import { StorageProvider, StorageType, createStorageProvider } from "./storage";
 import { getMimeType } from "./mime";
 import { ProgressNotice } from "./progress-notice";
 import { RemoteFileView, VIEW_TYPE_REMOTE_FILE } from "./remote-file-view";
@@ -13,6 +13,7 @@ const REMOTE_EXTENSION = "remote";
 export default class WebDavArchivePlugin extends Plugin {
   settings: WebDavArchiveSettings = DEFAULT_SETTINGS;
   private readonly activeOperations = new Set<string>();
+  private readonly storageProviders = new Map<StorageType, StorageProvider>();
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -64,7 +65,26 @@ export default class WebDavArchivePlugin extends Plugin {
   }
 
   async saveSettings(): Promise<void> {
+    this.resetStorageProviders();
     await this.saveData(this.settings);
+  }
+
+  getStorageProvider(storageType?: StorageType | string): StorageProvider {
+    const type: StorageType =
+      storageType === "nextcloud" || storageType === "webdav"
+        ? storageType
+        : this.settings.storageType;
+
+    let provider = this.storageProviders.get(type);
+    if (!provider) {
+      provider = createStorageProvider(this.settings, type);
+      this.storageProviders.set(type, provider);
+    }
+    return provider;
+  }
+
+  resetStorageProviders(): void {
+    this.storageProviders.clear();
   }
 
   private async loadSettings(): Promise<void> {
@@ -76,12 +96,16 @@ export default class WebDavArchivePlugin extends Plugin {
 
     this.settings = {
       ...DEFAULT_SETTINGS,
+      storageType: saved?.storageType === "nextcloud" ? "nextcloud" : "webdav",
       webDavUrl: saved?.webDavUrl ?? legacyWebDavUrl,
       publicUrl: saved?.publicUrl ?? DEFAULT_SETTINGS.publicUrl,
+      nextcloudUrl: saved?.nextcloudUrl ?? DEFAULT_SETTINGS.nextcloudUrl,
       username: saved?.username ?? DEFAULT_SETTINGS.username,
       password: saved?.password ?? DEFAULT_SETTINGS.password,
       ffmpegPath: saved?.ffmpegPath ?? DEFAULT_SETTINGS.ffmpegPath,
     };
+
+    this.resetStorageProviders();
 
     if (legacyWebDavUrl) {
       await this.saveSettings();
@@ -91,7 +115,8 @@ export default class WebDavArchivePlugin extends Plugin {
   private async archive(file: TFile): Promise<void> {
     await this.runExclusive(file.path, t("archive.title", { name: file.name }), async (progress) => {
       progress.update(5, t("archive.checkingConfiguration"));
-      const client = this.createClient();
+      const provider = this.getStorageProvider();
+      provider.validateConfiguration({ requirePublicUrl: true });
       const markerPath = `${file.path}.${REMOTE_EXTENSION}`;
       if (this.app.vault.getAbstractFileByPath(markerPath)) {
         throw new Error(t("archive.markerExists", { path: markerPath }));
@@ -102,7 +127,7 @@ export default class WebDavArchivePlugin extends Plugin {
       const mimeType = getMimeType(file.extension);
       progress.update(25, t("archive.checksum"));
       const checksum = await sha256(data);
-      const uploaded = await client.upload(data, mimeType, (sentBytes, totalBytes) => {
+      const uploaded = await provider.upload(data, mimeType, (sentBytes, totalBytes) => {
         const expectedBytes = totalBytes ?? data.byteLength;
         progress.update(
           30 + transferFraction(sentBytes, expectedBytes) * 50,
@@ -116,7 +141,7 @@ export default class WebDavArchivePlugin extends Plugin {
       progress.update(82, t("archive.creatingMarker"));
       const metadata: RemoteFile = {
         version: 2,
-        storage: "webdav",
+        storage: provider.storageType,
         relativePath: uploaded.relativePath,
         publicUrl: uploaded.fileUrl,
         fileUrl: uploaded.fileUrl,
@@ -137,7 +162,7 @@ export default class WebDavArchivePlugin extends Plugin {
         if (marker) {
           await this.app.vault.delete(marker).catch(() => undefined);
         }
-        await client.delete(uploaded.relativePath).catch(() => undefined);
+        await provider.delete(uploaded.relativePath).catch(() => undefined);
         throw error;
       }
 
@@ -150,11 +175,16 @@ export default class WebDavArchivePlugin extends Plugin {
       progress.update(5, t("restore.readingMarker"));
       const metadata = parseRemoteFile(await this.app.vault.read(marker));
       progress.update(10, t("archive.checkingConfiguration"));
-      const client = this.createClient(false);
+      const provider = this.getStorageProvider(metadata.storage);
+      provider.validateConfiguration({ requirePublicUrl: false });
       const relativePath =
         metadata.version === 1
-          ? client.relativePathFromLegacyUrl(metadata.url)
+          ? (provider.relativePathFromLegacyUrl ? provider.relativePathFromLegacyUrl(metadata.url) : "")
           : metadata.relativePath;
+
+      if (!relativePath) {
+        throw new Error(t("error.invalidRemotePath"));
+      }
 
       const targetPath = metadata.originalPath || marker.path.slice(0, -`.${REMOTE_EXTENSION}`.length);
       const existing = this.app.vault.getAbstractFileByPath(targetPath);
@@ -172,14 +202,14 @@ export default class WebDavArchivePlugin extends Plugin {
 
         // A previous restore downloaded the file but could not finish remote cleanup.
         progress.indeterminate(t("restore.finishingCleanup"));
-        await client.delete(relativePath);
+        await provider.delete(relativePath);
         progress.update(95, t("restore.removingMarker"));
         await this.app.vault.delete(marker);
         return t("restore.complete", { name: metadata.originalName });
       }
 
       progress.indeterminate(t("restore.downloading"));
-      const data = await client.download(relativePath, (receivedBytes, totalBytes) => {
+      const data = await provider.download(relativePath, (receivedBytes, totalBytes) => {
         const params = { transferred: formatBytes(receivedBytes), total: formatBytes(totalBytes ?? 0) };
         if (totalBytes === null) {
           progress.indeterminate(t("restore.downloadingUnknownSize", params));
@@ -205,7 +235,7 @@ export default class WebDavArchivePlugin extends Plugin {
       // If either cleanup operation fails, the restored local file and marker are
       // intentionally kept. Running Restore again safely retries the cleanup.
       progress.indeterminate(t("restore.removingRemote"));
-      await client.delete(relativePath);
+      await provider.delete(relativePath);
       progress.update(96, t("restore.removingMarker"));
       await this.app.vault.delete(marker);
       return t("restore.complete", { name: metadata.originalName });
@@ -218,12 +248,6 @@ export default class WebDavArchivePlugin extends Plugin {
       t("convert.title", { name: file.name }),
       (progress) => convertVideoToMp4(this.app, file, progress, this.settings.ffmpegPath),
     );
-  }
-
-  private createClient(requirePublicUrl = true): WebDavClient {
-    const client = new WebDavClient(this.settings);
-    client.validateConfiguration(requirePublicUrl);
-    return client;
   }
 
   private async runExclusive(

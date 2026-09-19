@@ -1,7 +1,8 @@
 import { t } from "./i18n";
+import type { StorageType } from "./storage/types";
 
 interface RemoteFileMetadata {
-  storage: "webdav";
+  storage: StorageType | string;
   originalName: string;
   originalPath: string;
   mimeType: string;
@@ -12,15 +13,17 @@ interface RemoteFileMetadata {
 
 export interface RemoteFile extends RemoteFileMetadata {
   version: 2;
+  storage: StorageType | string;
   relativePath: string;
   /** Kept for compatibility with existing version 2 readers. */
-  publicUrl: string;
+  publicUrl?: string;
   /** Canonical full public URL for viewers and integrations. */
-  fileUrl: string;
+  fileUrl?: string;
 }
 
 export interface LegacyRemoteFile extends RemoteFileMetadata {
   version: 1;
+  storage: "webdav";
   /** Full private WebDAV URL used by the original marker format. */
   url: string;
 }
@@ -40,11 +43,11 @@ export function parseRemoteFile(value: string): ParsedRemoteFile {
   }
 
   if (isVersionTwoRemoteFile(parsed)) {
-    const publicUrl = typeof parsed.publicUrl === "string" ? parsed.publicUrl : parsed.fileUrl;
-    if (!publicUrl) {
+    const publicUrl = typeof parsed.publicUrl === "string" ? parsed.publicUrl : (typeof parsed.fileUrl === "string" ? parsed.fileUrl : "");
+    const fileUrl = typeof parsed.fileUrl === "string" ? parsed.fileUrl : publicUrl;
+    if (parsed.storage === "webdav" && !publicUrl) {
       throw new Error(t("error.missingPublicUrl"));
     }
-    const fileUrl = typeof parsed.fileUrl === "string" ? parsed.fileUrl : publicUrl;
     return { ...parsed, publicUrl, fileUrl };
   }
 
@@ -65,12 +68,27 @@ function isVersionTwoRemoteFile(value: unknown): value is Omit<RemoteFile, "publ
 
   const file = value as Record<string, unknown>;
   const publicUrl = typeof file.publicUrl === "string" ? file.publicUrl : file.fileUrl;
+  const isWebDav = file.storage === "webdav";
+  const isNextcloud = file.storage === "nextcloud";
+
+  if (!isWebDav && !isNextcloud && (typeof file.storage !== "string" || !file.storage)) {
+    return false;
+  }
+
+  if (isWebDav) {
+    if (typeof publicUrl !== "string" || !isHttpUrl(publicUrl)) {
+      return false;
+    }
+  } else if (publicUrl !== undefined && publicUrl !== "") {
+    if (typeof publicUrl !== "string" || !isHttpUrl(publicUrl)) {
+      return false;
+    }
+  }
+
   return (
     file.version === 2 &&
-    file.storage === "webdav" &&
     typeof file.relativePath === "string" &&
-    typeof publicUrl === "string" &&
-    isHttpUrl(publicUrl) &&
+    file.relativePath.length > 0 &&
     hasCommonFields(file)
   );
 }
