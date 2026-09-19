@@ -8,11 +8,17 @@ import { RemoteFileView, VIEW_TYPE_REMOTE_FILE } from "./remote-file-view";
 import { t } from "./i18n";
 import { convertVideoToMp4 } from "./video-converter";
 import { updateLinksForArchive, updateLinksForRestore } from "./link-updater";
+import { WebDavArchiveApi } from "./api";
+
+export type { WebDavArchiveApi };
 
 const REMOTE_EXTENSION = "remote";
 
 export default class WebDavArchivePlugin extends Plugin {
   settings: WebDavArchiveSettings = DEFAULT_SETTINGS;
+  public readonly api: WebDavArchiveApi = {
+    resolve: (remoteFile: TFile) => this.resolve(remoteFile),
+  };
   private readonly activeOperations = new Set<string>();
   private readonly storageProviders = new Map<StorageType, StorageProvider>();
 
@@ -100,6 +106,40 @@ export default class WebDavArchivePlugin extends Plugin {
     this.storageProviders.clear();
   }
 
+  async resolve(remoteFile: TFile): Promise<{ url: string }> {
+    if (!(remoteFile instanceof TFile)) {
+      throw new Error("Target file must be an instance of TFile");
+    }
+
+    const content = await this.app.vault.read(remoteFile);
+    const metadata = parseRemoteFile(content);
+
+    if (metadata.version === 1) {
+      return { url: metadata.url };
+    }
+
+    const relativePath = metadata.relativePath;
+    if (!relativePath) {
+      throw new Error(t("error.invalidRemotePath"));
+    }
+
+    const provider = this.getStorageProvider(metadata.storage);
+    let url: string;
+    try {
+      url = await provider.getFileUrl(relativePath);
+    } catch (error) {
+      if ("fileUrl" in metadata && metadata.fileUrl) {
+        url = metadata.fileUrl;
+      } else if ("publicUrl" in metadata && metadata.publicUrl) {
+        url = metadata.publicUrl;
+      } else {
+        throw error;
+      }
+    }
+
+    return { url };
+  }
+
   private async loadSettings(): Promise<void> {
     const saved = (await this.loadData()) as LegacySavedSettings | null;
     const legacyWebDavUrl =
@@ -154,11 +194,9 @@ export default class WebDavArchivePlugin extends Plugin {
 
       progress.update(82, t("archive.creatingMarker"));
       const metadata: RemoteFile = {
-        version: 2,
+        version: 3,
         storage: provider.storageType,
         relativePath: uploaded.relativePath,
-        publicUrl: uploaded.fileUrl,
-        fileUrl: uploaded.fileUrl,
         originalName: file.name,
         originalPath: file.path,
         mimeType,

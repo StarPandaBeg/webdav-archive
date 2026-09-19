@@ -78,8 +78,8 @@ export class RemoteFileView extends FileView {
 
     let fileUrl: string;
     try {
-      const provider = this.archivePlugin.getStorageProvider(metadata.storage);
-      fileUrl = await provider.getFileUrl(metadata.relativePath);
+      const resolved = await this.archivePlugin.api.resolve(file);
+      fileUrl = resolved.url;
     } catch (error) {
       if (this.file !== file || this.renderGeneration !== generation) {
         return;
@@ -113,14 +113,7 @@ export class RemoteFileView extends FileView {
   async copyDirectUrl(): Promise<void> {
     if (!this.file) return;
     try {
-      const metadata = parseRemoteFile(await this.app.vault.read(this.file));
-      let url: string;
-      if (metadata.version === 1) {
-        url = metadata.url;
-      } else {
-        const provider = this.archivePlugin.getStorageProvider(metadata.storage);
-        url = await provider.getFileUrl(metadata.relativePath);
-      }
+      const { url } = await this.archivePlugin.api.resolve(this.file);
       await navigator.clipboard.writeText(url);
       new Notice(t("view.urlCopied"));
     } catch (error) {
@@ -132,7 +125,7 @@ export class RemoteFileView extends FileView {
     if (!this.file) return;
     try {
       const metadata = parseRemoteFile(await this.app.vault.read(this.file));
-      if (metadata.version === 2) {
+      if ("relativePath" in metadata && metadata.relativePath) {
         const provider = this.archivePlugin.getStorageProvider(metadata.storage);
         await provider.getFileUrl(metadata.relativePath, true);
       }

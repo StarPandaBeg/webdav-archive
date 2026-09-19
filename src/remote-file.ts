@@ -1,7 +1,7 @@
 import { t } from "./i18n";
 import type { StorageType } from "./storage/types";
 
-interface RemoteFileMetadata {
+export interface RemoteFileMetadata {
   storage: StorageType | string;
   originalName: string;
   originalPath: string;
@@ -11,7 +11,15 @@ interface RemoteFileMetadata {
   archivedAt: string;
 }
 
-export interface RemoteFile extends RemoteFileMetadata {
+export interface RemoteFileV3 extends RemoteFileMetadata {
+  version: 3;
+  storage: StorageType | string;
+  relativePath: string;
+  publicUrl?: never;
+  fileUrl?: never;
+}
+
+export interface RemoteFileV2 extends RemoteFileMetadata {
   version: 2;
   storage: StorageType | string;
   relativePath: string;
@@ -20,6 +28,8 @@ export interface RemoteFile extends RemoteFileMetadata {
   /** Canonical full public URL for viewers and integrations. */
   fileUrl?: string;
 }
+
+export type RemoteFile = RemoteFileV3 | RemoteFileV2;
 
 export interface LegacyRemoteFile extends RemoteFileMetadata {
   version: 1;
@@ -31,6 +41,10 @@ export interface LegacyRemoteFile extends RemoteFileMetadata {
 export type ParsedRemoteFile = RemoteFile | LegacyRemoteFile;
 
 export function serializeRemoteFile(file: RemoteFile): string {
+  if (file.version === 3) {
+    const { publicUrl, fileUrl, ...v3Data } = file as unknown as Record<string, unknown>;
+    return `${JSON.stringify(v3Data, null, 2)}\n`;
+  }
   return `${JSON.stringify(file, null, 2)}\n`;
 }
 
@@ -42,8 +56,17 @@ export function parseRemoteFile(value: string): ParsedRemoteFile {
     throw new Error(t("error.invalidJson"));
   }
 
+  if (isVersionThreeRemoteFile(parsed)) {
+    return parsed;
+  }
+
   if (isVersionTwoRemoteFile(parsed)) {
-    const publicUrl = typeof parsed.publicUrl === "string" ? parsed.publicUrl : (typeof parsed.fileUrl === "string" ? parsed.fileUrl : "");
+    const publicUrl =
+      typeof parsed.publicUrl === "string"
+        ? parsed.publicUrl
+        : typeof parsed.fileUrl === "string"
+          ? parsed.fileUrl
+          : "";
     const fileUrl = typeof parsed.fileUrl === "string" ? parsed.fileUrl : publicUrl;
     if (parsed.storage === "webdav" && !publicUrl) {
       throw new Error(t("error.missingPublicUrl"));
@@ -58,7 +81,28 @@ export function parseRemoteFile(value: string): ParsedRemoteFile {
   throw new Error(t("error.invalidRemoteFile"));
 }
 
-function isVersionTwoRemoteFile(value: unknown): value is Omit<RemoteFile, "publicUrl" | "fileUrl"> & {
+function isVersionThreeRemoteFile(value: unknown): value is RemoteFileV3 {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const file = value as Record<string, unknown>;
+  const isWebDav = file.storage === "webdav";
+  const isNextcloud = file.storage === "nextcloud";
+
+  if (!isWebDav && !isNextcloud && (typeof file.storage !== "string" || !file.storage)) {
+    return false;
+  }
+
+  return (
+    file.version === 3 &&
+    typeof file.relativePath === "string" &&
+    file.relativePath.length > 0 &&
+    hasCommonFields(file)
+  );
+}
+
+function isVersionTwoRemoteFile(value: unknown): value is Omit<RemoteFileV2, "publicUrl" | "fileUrl"> & {
   publicUrl?: string;
   fileUrl?: string;
 } {
