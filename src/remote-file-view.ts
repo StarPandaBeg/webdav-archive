@@ -253,17 +253,17 @@ export class RemoteFileView extends FileView {
     new Setting(documentEl).setName(t("view.type")).setDesc(metadata.mimeType);
 
     new Setting(documentEl)
-      .setName(t("view.restore"))
+      .setName(t("action.restore"))
       .setDesc(t("view.restoreDescription"))
       .addButton((button) =>
         button
-          .setButtonText(t("view.restore"))
+          .setButtonText(t("action.restore"))
           .setCta()
           .onClick(async () => {
             button.setDisabled(true).setButtonText(t("view.restoring"));
             await this.archivePlugin.restoreRemoteFile(file);
             if (this.app.vault.getAbstractFileByPath(file.path)) {
-              button.setDisabled(false).setButtonText(t("view.restore"));
+              button.setDisabled(false).setButtonText(t("action.restore"));
             } else {
               button.setButtonText(t("view.restored"));
             }

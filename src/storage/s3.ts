@@ -449,7 +449,7 @@ export class S3StorageProvider implements StorageProvider {
         err.code === "ENOTFOUND" ||
         err.code === "ECONNREFUSED"
       ) {
-        return new Error(`${t("error.s3Network")}: ${message}`);
+        return new Error(`${t("error.network")}: ${message}`);
       }
       return error;
     }

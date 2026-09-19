@@ -44,7 +44,7 @@ export default class WebDavArchivePlugin extends Plugin {
           );
           menu.addItem((item) =>
             item
-              .setTitle(t("menu.deleteRemote"))
+              .setTitle(t("deleteRemote.title"))
               .setIcon("trash")
               .onClick(() => void this.deleteRemoteFile(file)),
           );
@@ -206,6 +206,7 @@ export default class WebDavArchivePlugin extends Plugin {
       const mimeType = getMimeType(file.extension);
       const expectedBytes = file.stat.size;
 
+      progress.update(30, t("archive.uploading"));
       const uploaded = await provider.upload(
         {
           file,
