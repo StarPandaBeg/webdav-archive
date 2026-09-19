@@ -1,5 +1,7 @@
 # Remote Archive
 
+> This is not a backup plugin. It is designed to free up local disk space by moving large files out of your Obsidian vault while keeping them accessible when needed.
+
 An Obsidian plugin for moving large vault files to remote storage and restoring
 them later.
 

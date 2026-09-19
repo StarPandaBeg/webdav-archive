@@ -240,7 +240,7 @@ export class S3StorageProvider implements StorageProvider {
         }),
       );
 
-      const stream = response.Body as any;
+      const stream = response.Body;
       if (!stream) {
         throw new Error(t("error.download", { status: 404 }));
       }
@@ -249,8 +249,9 @@ export class S3StorageProvider implements StorageProvider {
 
       const chunks: Buffer[] = [];
       let receivedBytes = 0;
-      if (typeof stream[Symbol.asyncIterator] === "function") {
-        for await (const chunk of stream) {
+      if (typeof stream === "object" && Symbol.asyncIterator in stream) {
+        const asyncStream = stream as AsyncIterable<Uint8Array | Buffer>;
+        for await (const chunk of asyncStream) {
           const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
           receivedBytes += buf.length;
           chunks.push(buf);
