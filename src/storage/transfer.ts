@@ -1,4 +1,3 @@
-import { Platform } from "obsidian";
 import type { TransferProgress } from "./types";
 import { t } from "../i18n";
 
@@ -7,7 +6,7 @@ export interface TransferResponse {
   arrayBuffer: ArrayBuffer;
 }
 
-export async function transferRequest(
+export function transferRequest(
   method: "GET" | "PUT",
   url: string,
   headers: Record<string, string>,
@@ -15,79 +14,7 @@ export async function transferRequest(
   onUploadProgress?: TransferProgress,
   onDownloadProgress?: TransferProgress,
 ): Promise<TransferResponse> {
-  return Platform.isDesktopApp
-    ? nodeTransferRequest(method, url, headers, body, onUploadProgress, onDownloadProgress)
-    : xhrTransferRequest(method, url, headers, body, onUploadProgress, onDownloadProgress);
-}
-
-export function nodeTransferRequest(
-  method: "GET" | "PUT",
-  urlValue: string,
-  headers: Record<string, string>,
-  body?: ArrayBuffer,
-  onUploadProgress?: TransferProgress,
-  onDownloadProgress?: TransferProgress,
-): Promise<TransferResponse> {
-  return new Promise((resolve, reject) => {
-    const url = new URL(urlValue);
-    // Loaded lazily because Node built-ins are unavailable in Obsidian Mobile.
-    const transport = url.protocol === "https:"
-      ? require("node:https") as typeof import("node:https")
-      : require("node:http") as typeof import("node:http");
-    const request = transport.request(url, { method, headers }, (response) => {
-      const chunks: Buffer[] = [];
-      let receivedBytes = 0;
-      const totalBytes = parseContentLength(response.headers["content-length"]);
-
-      response.on("data", (chunk: Buffer | Uint8Array) => {
-        const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-        chunks.push(buffer);
-        receivedBytes += buffer.byteLength;
-        onDownloadProgress?.(receivedBytes, totalBytes);
-      });
-      response.on("end", () => {
-        const result = Buffer.concat(chunks);
-        onDownloadProgress?.(receivedBytes, totalBytes);
-        resolve({
-          status: response.statusCode ?? 0,
-          arrayBuffer: result.buffer.slice(result.byteOffset, result.byteOffset + result.byteLength),
-        });
-      });
-      response.on("error", reject);
-    });
-
-    request.on("error", reject);
-    if (!body) {
-      request.end();
-      return;
-    }
-
-    const totalBytes = body.byteLength;
-    const chunkSize = 256 * 1024;
-    let sentBytes = 0;
-    onUploadProgress?.(0, totalBytes);
-
-    const writeNextChunk = (): void => {
-      if (sentBytes >= totalBytes) {
-        request.end();
-        return;
-      }
-      const nextOffset = Math.min(sentBytes + chunkSize, totalBytes);
-      const chunk = Buffer.from(body, sentBytes, nextOffset - sentBytes);
-      request.write(chunk, () => {
-        sentBytes = nextOffset;
-        onUploadProgress?.(sentBytes, totalBytes);
-        writeNextChunk();
-      });
-    };
-
-    if (totalBytes === 0) {
-      onUploadProgress?.(0, 0);
-      request.end();
-    } else {
-      writeNextChunk();
-    }
-  });
+  return xhrTransferRequest(method, url, headers, body, onUploadProgress, onDownloadProgress);
 }
 
 export function xhrTransferRequest(

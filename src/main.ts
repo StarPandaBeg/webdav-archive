@@ -18,6 +18,7 @@ export default class WebDavArchivePlugin extends Plugin {
   settings: WebDavArchiveSettings = DEFAULT_SETTINGS;
   public readonly api: WebDavArchiveApi = {
     resolve: (remoteFile: TFile) => this.resolve(remoteFile),
+    isPreviewEnabled: () => this.isPreviewEnabled(),
   };
   private readonly activeOperations = new Set<string>();
   private readonly storageProviders = new Map<StorageType, StorageProvider>();
@@ -80,6 +81,19 @@ export default class WebDavArchivePlugin extends Plugin {
     });
   }
 
+  refreshRemoteViews(): void {
+    this.app.workspace.getLeavesOfType(VIEW_TYPE_REMOTE_FILE).forEach((leaf) => {
+      const view = leaf.view;
+      if (view instanceof RemoteFileView && view.file) {
+        void view.onLoadFile(view.file);
+      }
+    });
+  }
+
+  isPreviewEnabled(): boolean {
+    return Boolean(this.settings.enablePreview);
+  }
+
   async saveSettings(): Promise<void> {
     this.resetStorageProviders();
     await this.saveData(this.settings);
@@ -104,6 +118,10 @@ export default class WebDavArchivePlugin extends Plugin {
   }
 
   async resolve(remoteFile: TFile): Promise<{ url: string }> {
+    if (!this.isPreviewEnabled()) {
+      throw new Error(t("error.previewDisabled"));
+    }
+
     if (!(remoteFile instanceof TFile)) {
       throw new Error("Target file must be an instance of TFile");
     }
@@ -237,6 +255,7 @@ export default class WebDavArchivePlugin extends Plugin {
         await this.app.fileManager.trashFile(file);
       } catch (error) {
         if (marker) {
+          // eslint-disable-next-line obsidianmd/prefer-file-manager-trash-file -- Intentional: delete plugin marker file directly without cluttering user trash
           await this.app.vault.delete(marker).catch(() => undefined);
         }
         await provider.delete(uploaded.relativePath).catch(() => undefined);
@@ -283,6 +302,7 @@ export default class WebDavArchivePlugin extends Plugin {
         progress.indeterminate(t("restore.finishingCleanup"));
         await provider.delete(relativePath);
         progress.update(95, t("restore.removingMarker"));
+        // eslint-disable-next-line obsidianmd/prefer-file-manager-trash-file -- Intentional: delete plugin marker file directly without cluttering user trash
         await this.app.vault.delete(marker);
         return t("restore.complete", { name: metadata.originalName });
       }
@@ -326,6 +346,7 @@ export default class WebDavArchivePlugin extends Plugin {
       progress.indeterminate(t("restore.removingRemote"));
       await provider.delete(relativePath);
       progress.update(96, t("restore.removingMarker"));
+      // eslint-disable-next-line obsidianmd/prefer-file-manager-trash-file -- Intentional: delete plugin marker file directly without cluttering user trash
       await this.app.vault.delete(marker);
       return t("restore.complete", { name: metadata.originalName });
     });

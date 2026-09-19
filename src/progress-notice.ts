@@ -9,8 +9,8 @@ export class ProgressNotice {
   private hideTimer: number | null = null;
 
   constructor(title: string) {
-    const fragment = document.createDocumentFragment();
-    const container = fragment.createDiv({ cls: "webdav-archive-progress" });
+    this.notice = new Notice("", 0);
+    const container = this.notice.messageEl.createDiv({ cls: "webdav-archive-progress" });
 
     container.createDiv({ cls: "webdav-archive-progress__title", text: title });
 
@@ -21,7 +21,6 @@ export class ProgressNotice {
     this.progressEl = container.createEl("progress", { cls: "webdav-archive-progress__bar" });
     this.progressEl.max = 100;
 
-    this.notice = new Notice(fragment, 0);
     this.update(0, t("progress.preparing"));
   }
 
