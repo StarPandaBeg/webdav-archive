@@ -1,6 +1,6 @@
 {
   "name": "obsidian-remote-archive",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Obsidian plugin for archiving vault files in remote storage",
   "main": "main.js",
   "scripts": {
