@@ -1,9 +1,9 @@
 {
-  "id": "webdav-archive",
-  "name": "WebDAV Archive",
+  "id": "remote-archive",
+  "name": "Remote Archive",
   "version": "0.1.0",
   "minAppVersion": "1.4.0",
-  "description": "Move vault files to WebDAV storage and restore them when needed.",
+  "description": "Move vault files to remote storage and restore them when needed.",
   "author": "StarPandaBeg",
   "authorUrl": "https://github.com/StarPandaBeg",
   "isDesktopOnly": false

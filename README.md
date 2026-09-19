@@ -1,6 +1,6 @@
-# WebDAV Archive
+# Remote Archive
 
-An Obsidian plugin for moving large vault files to WebDAV storage and restoring
+An Obsidian plugin for moving large vault files to remote storage and restoring
 them later.
 
 ## Current features
@@ -80,7 +80,7 @@ The build creates `main.js`. To test the plugin manually, copy `main.js`,
 `manifest.json`, and `styles.css` to:
 
 ```text
-<vault>/.obsidian/plugins/webdav-archive/
+<vault>/.obsidian/plugins/remote-archive/
 ```
 
 For automatic development deployment, put the path to your vault in a local
