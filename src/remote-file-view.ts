@@ -1,4 +1,15 @@
-import { Component, FileView, MarkdownRenderer, requestUrl, Setting, TFile, WorkspaceLeaf } from "obsidian";
+import {
+  Component,
+  FileView,
+  MarkdownRenderer,
+  Notice,
+  Setting,
+  TFile,
+  WorkspaceLeaf,
+  requestUrl,
+  setIcon,
+  setTooltip,
+} from "obsidian";
 import type { IconName } from "obsidian";
 import type WebDavArchivePlugin from "./main";
 import { parseRemoteFile } from "./remote-file";
@@ -15,6 +26,9 @@ export class RemoteFileView extends FileView {
 
   constructor(leaf: WorkspaceLeaf, private readonly archivePlugin: WebDavArchivePlugin) {
     super(leaf);
+    this.addAction("refresh-cw", t("action.refresh"), () => void this.refreshPreview());
+    this.addAction("link", t("action.copyUrl"), () => void this.copyDirectUrl());
+    this.addAction("download", t("action.restore"), () => void this.restoreCurrentFile());
   }
 
   getViewType(): string {
@@ -45,6 +59,7 @@ export class RemoteFileView extends FileView {
 
     if (metadata.version === 1) {
       this.renderInformation(metadata, file);
+      this.renderFloatingToolbar();
       return;
     }
 
@@ -55,6 +70,7 @@ export class RemoteFileView extends FileView {
 
     if (!isMedia && !isText) {
       this.renderInformation(metadata, file);
+      this.renderFloatingToolbar();
       return;
     }
 
@@ -74,6 +90,7 @@ export class RemoteFileView extends FileView {
       }
       loading.remove();
       this.renderInformation(metadata, file, error instanceof Error ? error.message : String(error));
+      this.renderFloatingToolbar();
       return;
     }
 
@@ -83,19 +100,97 @@ export class RemoteFileView extends FileView {
     loading.remove();
 
     if (isMedia && this.renderMedia(metadata, file, fileUrl)) {
+      this.renderFloatingToolbar();
       return;
     }
 
     if (isText && (await this.renderText(metadata, file, fileUrl))) {
+      this.renderFloatingToolbar();
       return;
     }
 
     this.renderInformation(metadata, file);
+    this.renderFloatingToolbar();
   }
 
   async onUnloadFile(): Promise<void> {
     this.renderGeneration += 1;
     this.releasePreview();
+  }
+
+  async copyDirectUrl(): Promise<void> {
+    if (!this.file) return;
+    try {
+      const metadata = parseRemoteFile(await this.app.vault.read(this.file));
+      let url: string;
+      if (metadata.version === 1) {
+        url = metadata.url;
+      } else {
+        const provider = this.archivePlugin.getStorageProvider(metadata.storage);
+        url = await provider.getFileUrl(metadata.relativePath);
+      }
+      await navigator.clipboard.writeText(url);
+      new Notice(t("view.urlCopied"));
+    } catch (error) {
+      new Notice(t("view.copyUrlFailed", { message: error instanceof Error ? error.message : String(error) }));
+    }
+  }
+
+  async refreshPreview(): Promise<void> {
+    if (!this.file) return;
+    try {
+      const metadata = parseRemoteFile(await this.app.vault.read(this.file));
+      if (metadata.version === 2) {
+        const provider = this.archivePlugin.getStorageProvider(metadata.storage);
+        await provider.getFileUrl(metadata.relativePath, true);
+      }
+      await this.onLoadFile(this.file);
+      new Notice(t("view.previewRefreshed"));
+    } catch (error) {
+      await this.onLoadFile(this.file);
+    }
+  }
+
+  async restoreCurrentFile(): Promise<void> {
+    if (!this.file) return;
+    await this.archivePlugin.restoreRemoteFile(this.file);
+  }
+
+  private renderFloatingToolbar(): void {
+    const toolbar = this.contentEl.createDiv({ cls: "webdav-archive-floating-toolbar" });
+
+    const refreshBtn = toolbar.createEl("button", {
+      cls: "webdav-archive-toolbar-btn",
+      attr: { type: "button", "aria-label": t("action.refresh") },
+    });
+    setIcon(refreshBtn, "refresh-cw");
+    setTooltip(refreshBtn, t("action.refresh"));
+    refreshBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      void this.refreshPreview();
+    });
+
+    const copyBtn = toolbar.createEl("button", {
+      cls: "webdav-archive-toolbar-btn",
+      attr: { type: "button", "aria-label": t("action.copyUrl") },
+    });
+    setIcon(copyBtn, "link");
+    setTooltip(copyBtn, t("action.copyUrl"));
+    copyBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      void this.copyDirectUrl();
+    });
+
+    const restoreBtn = toolbar.createEl("button", {
+      cls: "webdav-archive-toolbar-btn",
+      attr: { type: "button", "aria-label": t("action.restore") },
+    });
+    setIcon(restoreBtn, "download");
+    setTooltip(restoreBtn, t("action.restore"));
+    restoreBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      void this.restoreCurrentFile();
+    });
   }
 
   private renderMedia(metadata: RemoteFile, marker: TFile, fileUrl: string): boolean {
@@ -113,6 +208,7 @@ export class RemoteFileView extends FileView {
       }
       this.resetContent();
       this.renderInformation(metadata, marker, t("view.previewUnavailable"));
+      this.renderFloatingToolbar();
     };
 
     if (mimeType.startsWith("image/")) {
@@ -191,6 +287,7 @@ export class RemoteFileView extends FileView {
       if (this.file === marker && this.renderGeneration === generation) {
         this.resetContent();
         this.renderInformation(metadata, marker, t("view.previewUnavailable"));
+        this.renderFloatingToolbar();
       }
       return true;
     }

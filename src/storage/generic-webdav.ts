@@ -31,7 +31,7 @@ export class GenericWebDavProvider extends BaseWebDavStorageProvider {
     }
   }
 
-  async getFileUrl(relativePath: string): Promise<string> {
+  async getFileUrl(relativePath: string, _forceRefresh?: boolean): Promise<string> {
     return this.publicUrl(relativePath);
   }
 

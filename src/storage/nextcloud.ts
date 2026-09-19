@@ -38,10 +38,12 @@ export class NextcloudStorageProvider extends BaseWebDavStorageProvider {
     }
   }
 
-  async getFileUrl(relativePath: string): Promise<string> {
-    const cached = this.directUrlCache.get(relativePath);
-    if (cached && Date.now() < cached.expiresAt) {
-      return cached.url;
+  async getFileUrl(relativePath: string, forceRefresh = false): Promise<string> {
+    if (!forceRefresh) {
+      const cached = this.directUrlCache.get(relativePath);
+      if (cached && Date.now() < cached.expiresAt) {
+        return cached.url;
+      }
     }
 
     const fileId = await this.fetchFileId(relativePath);

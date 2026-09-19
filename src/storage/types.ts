@@ -13,6 +13,6 @@ export interface StorageProvider {
   upload(data: ArrayBuffer, mimeType: string, onProgress?: TransferProgress): Promise<UploadedObject>;
   download(relativePath: string, onProgress?: TransferProgress): Promise<ArrayBuffer>;
   delete(relativePath: string): Promise<void>;
-  getFileUrl(relativePath: string): Promise<string>;
+  getFileUrl(relativePath: string, forceRefresh?: boolean): Promise<string>;
   relativePathFromLegacyUrl?(remoteUrl: string): string;
 }

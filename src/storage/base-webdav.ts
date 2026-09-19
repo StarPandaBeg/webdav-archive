@@ -12,7 +12,7 @@ export abstract class BaseWebDavStorageProvider implements StorageProvider {
   abstract readonly storageType: StorageType;
 
   abstract validateConfiguration(options?: { requirePublicUrl?: boolean }): void;
-  abstract getFileUrl(relativePath: string): Promise<string>;
+  abstract getFileUrl(relativePath: string, forceRefresh?: boolean): Promise<string>;
   protected abstract webDavUrl(relativePath: string): string;
   protected abstract authorizationHeaders(): Record<string, string>;
 
