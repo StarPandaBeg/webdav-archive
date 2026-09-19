@@ -6,7 +6,7 @@ them later.
 ## Current features
 
 - Adds **Archive to WebDAV** to the context menu of every vault file.
-- Shows archive and restore progress in a persistent Obsidian notification.
+- Shows byte-accurate upload and download progress in a persistent Obsidian notification.
 - Uploads the file under a random UUID and verifies the uploaded size.
 - Replaces the local file with a JSON marker named `<original name>.remote`.
 - Stores the shared relative path, generated public `fileUrl`, original name and path,

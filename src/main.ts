@@ -102,8 +102,16 @@ export default class WebDavArchivePlugin extends Plugin {
       const mimeType = getMimeType(file.extension);
       progress.update(25, t("archive.checksum"));
       const checksum = await sha256(data);
-      progress.indeterminate(t("archive.uploading"));
-      const uploaded = await client.upload(data, mimeType);
+      const uploaded = await client.upload(data, mimeType, (sentBytes, totalBytes) => {
+        const expectedBytes = totalBytes ?? data.byteLength;
+        progress.update(
+          30 + transferFraction(sentBytes, expectedBytes) * 50,
+          t("archive.uploadingProgress", {
+            transferred: formatBytes(sentBytes),
+            total: formatBytes(expectedBytes),
+          }),
+        );
+      });
 
       progress.update(82, t("archive.creatingMarker"));
       const metadata: RemoteFile = {
@@ -171,7 +179,17 @@ export default class WebDavArchivePlugin extends Plugin {
       }
 
       progress.indeterminate(t("restore.downloading"));
-      const data = await client.download(relativePath);
+      const data = await client.download(relativePath, (receivedBytes, totalBytes) => {
+        const params = { transferred: formatBytes(receivedBytes), total: formatBytes(totalBytes ?? 0) };
+        if (totalBytes === null) {
+          progress.indeterminate(t("restore.downloadingUnknownSize", params));
+        } else {
+          progress.update(
+            15 + transferFraction(receivedBytes, totalBytes) * 50,
+            t("restore.downloadingProgress", params),
+          );
+        }
+      });
       progress.update(68, t("restore.checkingSize"));
       if (data.byteLength !== metadata.size) {
         throw new Error(t("restore.sizeMismatch", { expected: metadata.size, actual: data.byteLength }));
@@ -262,4 +280,22 @@ async function sha256(data: ArrayBuffer): Promise<string> {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function transferFraction(transferredBytes: number, totalBytes: number): number {
+  if (totalBytes === 0) return 1;
+  return Math.max(0, Math.min(1, transferredBytes / totalBytes));
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ["KiB", "MiB", "GiB", "TiB"];
+  let value = bytes;
+  let unit = "B";
+  for (const nextUnit of units) {
+    value /= 1024;
+    unit = nextUnit;
+    if (value < 1024) break;
+  }
+  return `${value.toFixed(value < 10 ? 1 : 0)} ${unit}`;
 }

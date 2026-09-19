@@ -23,6 +23,7 @@ const en = {
   "archive.reading": "Reading local file…",
   "archive.checksum": "Calculating checksum…",
   "archive.uploading": "Uploading to WebDAV…",
+  "archive.uploadingProgress": "Uploading to WebDAV… {transferred} / {total}",
   "archive.creatingMarker": "Creating remote marker…",
   "archive.removingOriginal": "Removing local original…",
   "archive.complete": "Archived {name}",
@@ -34,6 +35,8 @@ const en = {
   "restore.finishingCleanup": "Finishing WebDAV cleanup…",
   "restore.removingMarker": "Removing remote marker…",
   "restore.downloading": "Downloading from WebDAV…",
+  "restore.downloadingProgress": "Downloading from WebDAV… {transferred} / {total}",
+  "restore.downloadingUnknownSize": "Downloading from WebDAV… {transferred}",
   "restore.checkingSize": "Checking downloaded size…",
   "restore.sizeMismatch": "Downloaded size does not match: expected {expected}, got {actual}",
   "restore.verifyingChecksum": "Verifying checksum…",
@@ -80,6 +83,7 @@ const en = {
   "error.invalidPublicUrl": "The public URL is invalid",
   "error.publicCredentials": "The public URL must not contain credentials",
   "error.invalidRemotePath": "The remote object path is invalid",
+  "error.network": "The WebDAV network request failed",
 } as const;
 
 type TranslationKey = keyof typeof en;
@@ -108,6 +112,7 @@ const ru: Record<TranslationKey, string> = {
   "archive.reading": "Чтение локального файла…",
   "archive.checksum": "Вычисление контрольной суммы…",
   "archive.uploading": "Загрузка в WebDAV…",
+  "archive.uploadingProgress": "Загрузка в WebDAV… {transferred} / {total}",
   "archive.creatingMarker": "Создание файла-маркера…",
   "archive.removingOriginal": "Удаление локального оригинала…",
   "archive.complete": "Файл заархивирован: {name}",
@@ -119,6 +124,8 @@ const ru: Record<TranslationKey, string> = {
   "restore.finishingCleanup": "Завершение очистки WebDAV…",
   "restore.removingMarker": "Удаление файла-маркера…",
   "restore.downloading": "Скачивание из WebDAV…",
+  "restore.downloadingProgress": "Скачивание из WebDAV… {transferred} / {total}",
+  "restore.downloadingUnknownSize": "Скачивание из WebDAV… {transferred}",
   "restore.checkingSize": "Проверка размера файла…",
   "restore.sizeMismatch": "Размер скачанного файла не совпадает: ожидалось {expected}, получено {actual}",
   "restore.verifyingChecksum": "Проверка контрольной суммы…",
@@ -165,6 +172,7 @@ const ru: Record<TranslationKey, string> = {
   "error.invalidPublicUrl": "Некорректный публичный URL",
   "error.publicCredentials": "Публичный URL не должен содержать учётные данные",
   "error.invalidRemotePath": "Некорректный путь объекта в WebDAV",
+  "error.network": "Ошибка сетевого запроса к WebDAV",
 };
 
 export function t(key: TranslationKey, params: TranslationParams = {}): string {
