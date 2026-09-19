@@ -1,0 +1,80 @@
+name: Release Plugin
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "*"
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build & Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck & Build plugin
+        run: npm run build
+
+      - name: Verify build artifacts
+        run: |
+          for file in main.js manifest.json styles.css; do
+            if [ ! -f "$file" ]; then
+              echo "Error: Required asset $file not found!"
+              exit 1
+            fi
+          done
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: remote-archive-plugin
+          path: |
+            main.js
+            manifest.json
+            styles.css
+
+      - name: Create or Update GitHub Release
+        if: github.event_name != 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            TAG_NAME="${GITHUB_REF#refs/tags/}"
+          else
+            TAG_NAME=$(node -p "require('./manifest.json').version")
+          fi
+
+          echo "Target release tag: $TAG_NAME"
+
+          if gh release view "$TAG_NAME" > /dev/null 2>&1; then
+            echo "Release $TAG_NAME already exists. Updating release assets..."
+            gh release upload "$TAG_NAME" main.js manifest.json styles.css --clobber
+          else
+            echo "Creating release $TAG_NAME..."
+            gh release create "$TAG_NAME" \
+              --title="$TAG_NAME" \
+              --generate-notes \
+              main.js manifest.json styles.css
+          fi

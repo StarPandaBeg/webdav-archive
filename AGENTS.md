@@ -164,6 +164,11 @@ npm run typecheck
 - Do not check in broken TypeScript types (`tsc --noEmit --skipLibCheck` must exit with 0).
 - External libraries: `@aws-sdk/client-s3` and `@aws-sdk/s3-request-presigner` are bundled by esbuild; `obsidian` is treated as external.
 
+### CI/CD Release Workflow (`.github/workflows/release.yml`)
+- Triggered on push to `main`, tags, and manual `workflow_dispatch`.
+- Builds plugin (`npm run build`) and verifies required Obsidian assets: `main.js`, `manifest.json`, `styles.css`.
+- Publishes or updates GitHub release matching `manifest.json` version, attaching all assets.
+
 ---
 
 ## 8. Git Commit Guidelines
