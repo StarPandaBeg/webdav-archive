@@ -37,7 +37,7 @@ The remote object and `.remote` marker are **ONLY** deleted after local restorat
 4. Write restored file into the vault via `app.vault.createBinary`.
 5. Update all internal Obsidian links and frontmatter from `[[file.remote]]` to `[[file]]` via `updateLinksForRestore`.
 6. Delete the remote object from storage (`provider.delete(relativePath)`).
-7. Delete the `.remote` marker file via `app.fileManager.trashFile(marker)`.
+7. Delete the `.remote` marker file via `app.vault.delete(marker)`. (Do NOT add `eslint-disable` comments; community plugin review treats disabling `obsidianmd/prefer-file-manager-trash-file` as a fatal error, whereas the warning itself is acceptable for internal marker cleanup).
 *Note:* If steps 6 or 7 fail, the restored local file is preserved. Running "Restore" again will safely detect the existing valid local file and retry the cleanup idempotently.
 
 ### C. Remote Deletion Invariant ("Удалить из удалённого хранилища")
