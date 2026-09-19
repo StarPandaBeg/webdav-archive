@@ -277,8 +277,8 @@ export class S3StorageProvider implements StorageProvider {
         }),
       );
       return true;
-    } catch (err: any) {
-      if (err.name === "NotFound" || err.$metadata?.httpStatusCode === 404) {
+    } catch (err: unknown) {
+      if (isS3NotFound(err)) {
         return false;
       }
       throw this.wrapS3Error(err);
@@ -298,8 +298,8 @@ export class S3StorageProvider implements StorageProvider {
         return head.ContentLength === expectedSize;
       }
       return true;
-    } catch (err: any) {
-      if (err.name === "NotFound" || err.$metadata?.httpStatusCode === 404) {
+    } catch (err: unknown) {
+      if (isS3NotFound(err)) {
         return false;
       }
       throw this.wrapS3Error(err);
@@ -340,9 +340,9 @@ export class S3StorageProvider implements StorageProvider {
 
   private wrapS3Error(error: unknown): Error {
     if (error instanceof Error) {
-      const err = error as any;
+      const err = error as Error & { code?: string | number; $metadata?: { httpStatusCode?: number } };
       const name = err.name || "";
-      const code = err.code || err.$metadata?.httpStatusCode;
+      const code = err.code ?? err.$metadata?.httpStatusCode;
       const message = err.message || "";
 
       if (name === "NoSuchBucket" || (code === 404 && message.toLowerCase().includes("bucket"))) {
@@ -371,4 +371,12 @@ export class S3StorageProvider implements StorageProvider {
     }
     return new Error(String(error));
   }
+}
+
+function isS3NotFound(err: unknown): boolean {
+  if (!err || typeof err !== "object") {
+    return false;
+  }
+  const errorObj = err as { name?: string; $metadata?: { httpStatusCode?: number } };
+  return errorObj.name === "NotFound" || errorObj.$metadata?.httpStatusCode === 404;
 }

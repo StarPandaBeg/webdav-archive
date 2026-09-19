@@ -10,27 +10,17 @@ export class ProgressNotice {
 
   constructor(title: string) {
     const fragment = document.createDocumentFragment();
-    const container = document.createElement("div");
-    container.className = "webdav-archive-progress";
+    const container = fragment.createDiv({ cls: "webdav-archive-progress" });
 
-    const titleEl = document.createElement("div");
-    titleEl.className = "webdav-archive-progress__title";
-    titleEl.textContent = title;
+    container.createDiv({ cls: "webdav-archive-progress__title", text: title });
 
-    const detailsEl = document.createElement("div");
-    detailsEl.className = "webdav-archive-progress__details";
-    this.statusEl = document.createElement("div");
-    this.statusEl.className = "webdav-archive-progress__status";
-    this.percentEl = document.createElement("span");
-    this.percentEl.className = "webdav-archive-progress__percent";
-    detailsEl.append(this.statusEl, this.percentEl);
+    const detailsEl = container.createDiv({ cls: "webdav-archive-progress__details" });
+    this.statusEl = detailsEl.createDiv({ cls: "webdav-archive-progress__status" });
+    this.percentEl = detailsEl.createSpan({ cls: "webdav-archive-progress__percent" });
 
-    this.progressEl = document.createElement("progress");
-    this.progressEl.className = "webdav-archive-progress__bar";
+    this.progressEl = container.createEl("progress", { cls: "webdav-archive-progress__bar" });
     this.progressEl.max = 100;
 
-    container.append(titleEl, detailsEl, this.progressEl);
-    fragment.append(container);
     this.notice = new Notice(fragment, 0);
     this.update(0, t("progress.preparing"));
   }

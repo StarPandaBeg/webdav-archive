@@ -171,7 +171,11 @@ export class NextcloudStorageProvider extends BaseWebDavStorageProvider {
       throw new Error(t("error.nextcloudDirectUrl"));
     }
 
-    const record = parsed as Record<string, any>;
+    const record = parsed as {
+      ocs?: { data?: { url?: string } };
+      data?: { url?: string };
+      url?: string;
+    } | null | undefined;
     const directUrl = record?.ocs?.data?.url ?? record?.data?.url ?? record?.url;
     if (typeof directUrl !== "string" || !directUrl.trim()) {
       throw new Error(t("error.nextcloudDirectUrl"));

@@ -85,7 +85,7 @@ export default class WebDavArchivePlugin extends Plugin {
     await this.saveData(this.settings);
   }
 
-  getStorageProvider(storageType?: StorageType | string): StorageProvider {
+  getStorageProvider(storageType?: string): StorageProvider {
     const type: StorageType =
       storageType === "nextcloud" || storageType === "webdav" || storageType === "s3"
         ? storageType
@@ -234,10 +234,10 @@ export default class WebDavArchivePlugin extends Plugin {
         progress.update(88, t("archive.updatingLinks"));
         await updateLinksForArchive(this.app, file);
         progress.update(94, t("archive.removingOriginal"));
-        await this.app.vault.delete(file);
+        await this.app.fileManager.trashFile(file);
       } catch (error) {
         if (marker) {
-          await this.app.vault.delete(marker).catch(() => undefined);
+          await this.app.fileManager.trashFile(marker).catch(() => undefined);
         }
         await provider.delete(uploaded.relativePath).catch(() => undefined);
         throw error;
@@ -283,7 +283,7 @@ export default class WebDavArchivePlugin extends Plugin {
         progress.indeterminate(t("restore.finishingCleanup"));
         await provider.delete(relativePath);
         progress.update(95, t("restore.removingMarker"));
-        await this.app.vault.delete(marker);
+        await this.app.fileManager.trashFile(marker);
         return t("restore.complete", { name: metadata.originalName });
       }
 
@@ -326,7 +326,7 @@ export default class WebDavArchivePlugin extends Plugin {
       progress.indeterminate(t("restore.removingRemote"));
       await provider.delete(relativePath);
       progress.update(96, t("restore.removingMarker"));
-      await this.app.vault.delete(marker);
+      await this.app.fileManager.trashFile(marker);
       return t("restore.complete", { name: metadata.originalName });
     });
   }

@@ -27,7 +27,7 @@ The local file is **ONLY** deleted if every preceding step succeeds:
 4. Verify upload (size check via HEAD/Content-Length or ETag verification).
 5. Create `<filename>.remote` marker file with metadata (format v3).
 6. Update all internal Obsidian links and frontmatter from `[[file]]` to `[[file.remote]]` via `updateLinksForArchive`.
-7. **Only now** delete the original local file from the vault via `app.vault.delete`.
+7. **Only now** delete the original local file from the vault via `app.fileManager.trashFile`.
 
 ### B. Restoring Invariant
 The remote object and `.remote` marker are **ONLY** deleted after local restoration is verified:
@@ -37,7 +37,7 @@ The remote object and `.remote` marker are **ONLY** deleted after local restorat
 4. Write restored file into the vault via `app.vault.createBinary`.
 5. Update all internal Obsidian links and frontmatter from `[[file.remote]]` to `[[file]]` via `updateLinksForRestore`.
 6. Delete the remote object from storage (`provider.delete(relativePath)`).
-7. Delete the `.remote` marker file via `app.vault.delete`.
+7. Delete the `.remote` marker file via `app.fileManager.trashFile`.
 *Note:* If steps 6 or 7 fail, the restored local file is preserved. Running "Restore" again will safely detect the existing valid local file and retry the cleanup idempotently.
 
 ### C. Remote Deletion Invariant ("Удалить из удалённого хранилища")
