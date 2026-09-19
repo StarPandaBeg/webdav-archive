@@ -255,8 +255,7 @@ export default class WebDavArchivePlugin extends Plugin {
         await this.app.fileManager.trashFile(file);
       } catch (error) {
         if (marker) {
-          // eslint-disable-next-line obsidianmd/prefer-file-manager-trash-file -- Intentional: delete plugin marker file directly without cluttering user trash
-          await this.app.vault.delete(marker).catch(() => undefined);
+          await this.app.fileManager.trashFile(marker).catch(() => undefined);
         }
         await provider.delete(uploaded.relativePath).catch(() => undefined);
         throw error;
@@ -302,8 +301,7 @@ export default class WebDavArchivePlugin extends Plugin {
         progress.indeterminate(t("restore.finishingCleanup"));
         await provider.delete(relativePath);
         progress.update(95, t("restore.removingMarker"));
-        // eslint-disable-next-line obsidianmd/prefer-file-manager-trash-file -- Intentional: delete plugin marker file directly without cluttering user trash
-        await this.app.vault.delete(marker);
+        await this.app.fileManager.trashFile(marker);
         return t("restore.complete", { name: metadata.originalName });
       }
 
@@ -346,8 +344,7 @@ export default class WebDavArchivePlugin extends Plugin {
       progress.indeterminate(t("restore.removingRemote"));
       await provider.delete(relativePath);
       progress.update(96, t("restore.removingMarker"));
-      // eslint-disable-next-line obsidianmd/prefer-file-manager-trash-file -- Intentional: delete plugin marker file directly without cluttering user trash
-      await this.app.vault.delete(marker);
+      await this.app.fileManager.trashFile(marker);
       return t("restore.complete", { name: metadata.originalName });
     });
   }
