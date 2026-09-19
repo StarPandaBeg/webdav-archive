@@ -130,9 +130,11 @@ Exposed on `app.plugins.plugins["remote-archive"].api`:
 ```ts
 export interface WebDavArchiveApi {
   resolve(remoteFile: TFile): Promise<{ url: string }>;
+  isPreviewEnabled(): boolean;
 }
 ```
-`resolve(remoteFile)` parses the `.remote` file and dynamically retrieves the active streaming/download URL using the configured storage provider.
+- `resolve(remoteFile)` parses the `.remote` file and dynamically retrieves the active streaming/download URL using the configured storage provider. If previews are disabled (`enablePreview === false`), it throws an error.
+- `isPreviewEnabled()` returns `true` if media preview is enabled in settings, or `false` otherwise.
 
 ---
 

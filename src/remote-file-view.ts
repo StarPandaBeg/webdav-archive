@@ -60,6 +60,11 @@ export class RemoteFileView extends FileView {
       return;
     }
 
+    if (!this.archivePlugin.api.isPreviewEnabled()) {
+      this.renderInformation(metadata, file, t("view.previewDisabledNotice"));
+      return;
+    }
+
     const mimeType = metadata.mimeType.toLowerCase();
     const isMedia = mimeType.startsWith("image/") || mimeType.startsWith("video/") || mimeType.startsWith("audio/");
     const textType = mimeType.split(";", 1)[0].trim();
@@ -112,6 +117,10 @@ export class RemoteFileView extends FileView {
 
   async copyDirectUrl(): Promise<void> {
     if (!this.file) return;
+    if (!this.archivePlugin.api.isPreviewEnabled()) {
+      new Notice(t("error.previewDisabled"));
+      return;
+    }
     try {
       const { url } = await this.archivePlugin.api.resolve(this.file);
       await navigator.clipboard.writeText(url);
@@ -123,6 +132,10 @@ export class RemoteFileView extends FileView {
 
   async refreshPreview(): Promise<void> {
     if (!this.file) return;
+    if (!this.archivePlugin.api.isPreviewEnabled()) {
+      new Notice(t("error.previewDisabled"));
+      return;
+    }
     try {
       const metadata = parseRemoteFile(await this.app.vault.read(this.file));
       if ("relativePath" in metadata && metadata.relativePath) {

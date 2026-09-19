@@ -83,6 +83,10 @@ Open **Settings → Community plugins → Remote Archive** and choose your stora
 - **Public URL**: Optional read-only public CDN base URL corresponding to the WebDAV folder.
 - **Username & Password**: WebDAV credentials.
 
+### General Settings
+- **Enable media preview**: Toggle remote media streaming and previews. Disable this if your cloud storage does not support public access or direct streaming URLs. When disabled, `.remote` files display the standard informational stub without requesting preview URLs.
+- **Show globe icon**: Show a globe icon for `.remote` files in the file explorer and viewer tab.
+
 > All credentials are stored locally in Obsidian's plugin settings (`data.json`) and are never written to `.remote` files.
 
 ---
@@ -111,17 +115,22 @@ Marker files are stored as formatted JSON (`<original-name>.remote`):
 
 ## Public Plugin API
 
-Other plugins and Dataview scripts can resolve active playback/download URLs through the exposed plugin API:
+Other plugins and Dataview scripts can check preview availability and resolve active playback/download URLs through the exposed plugin API:
 
 ```ts
 import { TFile } from "obsidian";
 
 const plugin = app.plugins.plugins["remote-archive"];
 if (plugin?.api) {
-  const remoteFile = app.vault.getAbstractFileByPath("Media/Lectures/Lecture.mp4.remote");
-  if (remoteFile instanceof TFile) {
-    const { url } = await plugin.api.resolve(remoteFile);
-    console.log("Direct streaming URL:", url);
+  // Check if remote media preview is enabled in settings
+  if (plugin.api.isPreviewEnabled()) {
+    const remoteFile = app.vault.getAbstractFileByPath("Media/Lectures/Lecture.mp4.remote");
+    if (remoteFile instanceof TFile) {
+      const { url } = await plugin.api.resolve(remoteFile);
+      console.log("Direct streaming URL:", url);
+    }
+  } else {
+    console.log("Remote previews are disabled in settings");
   }
 }
 ```

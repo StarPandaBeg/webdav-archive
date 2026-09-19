@@ -18,6 +18,7 @@ export default class WebDavArchivePlugin extends Plugin {
   settings: WebDavArchiveSettings = DEFAULT_SETTINGS;
   public readonly api: WebDavArchiveApi = {
     resolve: (remoteFile: TFile) => this.resolve(remoteFile),
+    isPreviewEnabled: () => this.isPreviewEnabled(),
   };
   private readonly activeOperations = new Set<string>();
   private readonly storageProviders = new Map<StorageType, StorageProvider>();
@@ -80,6 +81,19 @@ export default class WebDavArchivePlugin extends Plugin {
     });
   }
 
+  refreshRemoteViews(): void {
+    this.app.workspace.getLeavesOfType(VIEW_TYPE_REMOTE_FILE).forEach((leaf) => {
+      const view = leaf.view;
+      if (view instanceof RemoteFileView && view.file) {
+        void view.onLoadFile(view.file);
+      }
+    });
+  }
+
+  isPreviewEnabled(): boolean {
+    return Boolean(this.settings.enablePreview);
+  }
+
   async saveSettings(): Promise<void> {
     this.resetStorageProviders();
     await this.saveData(this.settings);
@@ -104,6 +118,10 @@ export default class WebDavArchivePlugin extends Plugin {
   }
 
   async resolve(remoteFile: TFile): Promise<{ url: string }> {
+    if (!this.isPreviewEnabled()) {
+      throw new Error(t("error.previewDisabled"));
+    }
+
     if (!(remoteFile instanceof TFile)) {
       throw new Error("Target file must be an instance of TFile");
     }

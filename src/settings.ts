@@ -12,6 +12,7 @@ export interface WebDavArchiveSettings {
   nextcloudUrl: string;
   username: string;
   password: string;
+  enablePreview: boolean;
   showGlobeIcon: boolean;
   s3Endpoint: string;
   s3Region: string;
@@ -30,6 +31,7 @@ export const DEFAULT_SETTINGS: WebDavArchiveSettings = {
   nextcloudUrl: "",
   username: "",
   password: "",
+  enablePreview: true,
   showGlobeIcon: true,
   s3Endpoint: "",
   s3Region: "us-east-1",
@@ -248,6 +250,19 @@ export class WebDavArchiveSettingTab extends PluginSettingTab {
           });
         });
     }
+
+    new Setting(containerEl)
+      .setName(t("settings.enablePreview"))
+      .setDesc(t("settings.enablePreviewDescription"))
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.archivePlugin.settings.enablePreview)
+          .onChange(async (value) => {
+            this.archivePlugin.settings.enablePreview = value;
+            await this.archivePlugin.saveSettings();
+            this.archivePlugin.refreshRemoteViews();
+          }),
+      );
 
     new Setting(containerEl)
       .setName(t("settings.showGlobeIcon"))
