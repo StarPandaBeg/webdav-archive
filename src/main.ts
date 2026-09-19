@@ -237,7 +237,7 @@ export default class WebDavArchivePlugin extends Plugin {
         await this.app.fileManager.trashFile(file);
       } catch (error) {
         if (marker) {
-          await this.app.fileManager.trashFile(marker).catch(() => undefined);
+          await this.app.vault.delete(marker).catch(() => undefined);
         }
         await provider.delete(uploaded.relativePath).catch(() => undefined);
         throw error;
@@ -283,7 +283,7 @@ export default class WebDavArchivePlugin extends Plugin {
         progress.indeterminate(t("restore.finishingCleanup"));
         await provider.delete(relativePath);
         progress.update(95, t("restore.removingMarker"));
-        await this.app.fileManager.trashFile(marker);
+        await this.app.vault.delete(marker);
         return t("restore.complete", { name: metadata.originalName });
       }
 
@@ -326,7 +326,7 @@ export default class WebDavArchivePlugin extends Plugin {
       progress.indeterminate(t("restore.removingRemote"));
       await provider.delete(relativePath);
       progress.update(96, t("restore.removingMarker"));
-      await this.app.fileManager.trashFile(marker);
+      await this.app.vault.delete(marker);
       return t("restore.complete", { name: metadata.originalName });
     });
   }
