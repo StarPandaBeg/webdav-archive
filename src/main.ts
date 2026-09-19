@@ -6,7 +6,6 @@ import { getMimeType } from "./mime";
 import { ProgressNotice } from "./progress-notice";
 import { RemoteFileView, VIEW_TYPE_REMOTE_FILE } from "./remote-file-view";
 import { t } from "./i18n";
-import { convertVideoToMp4 } from "./video-converter";
 import { updateLinksForArchive, updateLinksForRestore } from "./link-updater";
 import { WebDavArchiveApi } from "./api";
 import { confirmAction } from "./confirm-modal";
@@ -58,15 +57,6 @@ export default class WebDavArchivePlugin extends Plugin {
             .setIcon("archive")
             .onClick(() => void this.archive(file)),
         );
-
-        if (Platform.isDesktopApp && getMimeType(file.extension).startsWith("video/")) {
-          menu.addItem((item) =>
-            item
-              .setTitle(t("menu.convertVideo"))
-              .setIcon("file-video")
-              .onClick(() => void this.convertVideo(file)),
-          );
-        }
       }),
     );
   }
@@ -167,7 +157,6 @@ export default class WebDavArchivePlugin extends Plugin {
       nextcloudUrl: saved?.nextcloudUrl ?? DEFAULT_SETTINGS.nextcloudUrl,
       username: saved?.username ?? DEFAULT_SETTINGS.username,
       password: saved?.password ?? DEFAULT_SETTINGS.password,
-      ffmpegPath: saved?.ffmpegPath ?? DEFAULT_SETTINGS.ffmpegPath,
       showGlobeIcon: saved?.showGlobeIcon ?? DEFAULT_SETTINGS.showGlobeIcon,
       s3Endpoint: saved?.s3Endpoint ?? DEFAULT_SETTINGS.s3Endpoint,
       s3Region: saved?.s3Region ?? DEFAULT_SETTINGS.s3Region,
@@ -437,14 +426,6 @@ export default class WebDavArchivePlugin extends Plugin {
     } finally {
       this.activeOperations.delete(marker.path);
     }
-  }
-
-  private async convertVideo(file: TFile): Promise<void> {
-    await this.runExclusive(
-      file.path,
-      t("convert.title", { name: file.name }),
-      (progress) => convertVideoToMp4(this.app, file, progress, this.settings.ffmpegPath),
-    );
   }
 
   private async runExclusive(

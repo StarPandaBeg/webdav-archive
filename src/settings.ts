@@ -1,4 +1,4 @@
-import { App, Platform, PluginSettingTab, Setting } from "obsidian";
+import { App, PluginSettingTab, Setting } from "obsidian";
 import type WebDavArchivePlugin from "./main";
 import type { StorageType } from "./storage/types";
 import { t } from "./i18n";
@@ -12,7 +12,6 @@ export interface WebDavArchiveSettings {
   nextcloudUrl: string;
   username: string;
   password: string;
-  ffmpegPath: string;
   showGlobeIcon: boolean;
   s3Endpoint: string;
   s3Region: string;
@@ -31,7 +30,6 @@ export const DEFAULT_SETTINGS: WebDavArchiveSettings = {
   nextcloudUrl: "",
   username: "",
   password: "",
-  ffmpegPath: "",
   showGlobeIcon: true,
   s3Endpoint: "",
   s3Region: "us-east-1",
@@ -249,21 +247,6 @@ export class WebDavArchiveSettingTab extends PluginSettingTab {
             await this.archivePlugin.saveSettings();
           });
         });
-    }
-
-    if (Platform.isDesktopApp) {
-      new Setting(containerEl)
-        .setName(t("settings.ffmpegPath"))
-        .setDesc(t("settings.ffmpegPathDescription"))
-        .addText((text) =>
-          text
-            .setPlaceholder("/opt/homebrew/bin/ffmpeg")
-            .setValue(this.archivePlugin.settings.ffmpegPath)
-            .onChange(async (value) => {
-              this.archivePlugin.settings.ffmpegPath = value.trim();
-              await this.archivePlugin.saveSettings();
-            }),
-        );
     }
 
     new Setting(containerEl)

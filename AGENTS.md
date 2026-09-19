@@ -100,7 +100,6 @@ src/
 ├── remote-file.ts      # .remote descriptor types, parsers, serializers
 ├── remote-file-view.ts # Custom viewer leaf for .remote files (audio/video/image/markdown/text)
 ├── settings.ts         # Setting tab and configuration data model
-├── video-converter.ts  # Desktop FFmpeg runner for MP4 transcoding
 └── storage/
     ├── types.ts           # StorageProvider interface, transfer contracts
     ├── base-webdav.ts     # Abstract WebDAV class (HEAD/GET/PUT/DELETE/PROPFIND)
