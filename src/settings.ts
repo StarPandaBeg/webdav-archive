@@ -13,6 +13,7 @@ export interface WebDavArchiveSettings {
   username: string;
   password: string;
   ffmpegPath: string;
+  showGlobeIcon: boolean;
 }
 
 export const DEFAULT_SETTINGS: WebDavArchiveSettings = {
@@ -23,6 +24,7 @@ export const DEFAULT_SETTINGS: WebDavArchiveSettings = {
   username: "",
   password: "",
   ffmpegPath: "",
+  showGlobeIcon: true,
 };
 
 export class WebDavArchiveSettingTab extends PluginSettingTab {
@@ -124,5 +126,18 @@ export class WebDavArchiveSettingTab extends PluginSettingTab {
             }),
         );
     }
+
+    new Setting(containerEl)
+      .setName(t("settings.showGlobeIcon"))
+      .setDesc(t("settings.showGlobeIconDescription"))
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.archivePlugin.settings.showGlobeIcon)
+          .onChange(async (value) => {
+            this.archivePlugin.settings.showGlobeIcon = value;
+            await this.archivePlugin.saveSettings();
+            this.archivePlugin.updateGlobeIconSetting();
+          }),
+      );
   }
 }

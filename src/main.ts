@@ -18,6 +18,7 @@ export default class WebDavArchivePlugin extends Plugin {
 
   async onload(): Promise<void> {
     await this.loadSettings();
+    this.updateGlobeIconSetting();
     this.addSettingTab(new WebDavArchiveSettingTab(this.app, this));
     this.registerView(VIEW_TYPE_REMOTE_FILE, (leaf) => new RemoteFileView(leaf, this));
     this.registerExtensions([REMOTE_EXTENSION], VIEW_TYPE_REMOTE_FILE);
@@ -58,11 +59,22 @@ export default class WebDavArchivePlugin extends Plugin {
   }
 
   onunload(): void {
+    document.body.classList.remove("webdav-archive-show-globe");
     try {
       viewRegistry(this.app).unregisterExtensions([REMOTE_EXTENSION]);
     } catch {
       // The extension may already have been released during shutdown.
     }
+  }
+
+  updateGlobeIconSetting(): void {
+    document.body.classList.toggle("webdav-archive-show-globe", this.settings.showGlobeIcon);
+    this.app.workspace.getLeavesOfType(VIEW_TYPE_REMOTE_FILE).forEach((leaf) => {
+      const leafAny = leaf as unknown as { updateHeader?: () => void };
+      if (typeof leafAny.updateHeader === "function") {
+        leafAny.updateHeader();
+      }
+    });
   }
 
   async saveSettings(): Promise<void> {
@@ -104,6 +116,7 @@ export default class WebDavArchivePlugin extends Plugin {
       username: saved?.username ?? DEFAULT_SETTINGS.username,
       password: saved?.password ?? DEFAULT_SETTINGS.password,
       ffmpegPath: saved?.ffmpegPath ?? DEFAULT_SETTINGS.ffmpegPath,
+      showGlobeIcon: saved?.showGlobeIcon ?? DEFAULT_SETTINGS.showGlobeIcon,
     };
 
     this.resetStorageProviders();

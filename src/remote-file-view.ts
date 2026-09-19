@@ -34,7 +34,7 @@ export class RemoteFileView extends FileView {
   }
 
   getIcon(): IconName {
-    return "globe-2";
+    return this.archivePlugin.settings.showGlobeIcon ? "globe-2" : (super.getIcon?.() ?? "document");
   }
 
   getDisplayText(): string {

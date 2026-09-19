@@ -130,7 +130,7 @@
 
 /* Obsidian does not expose a public per-extension icon registry, so mark
    .remote entries in the file explorer with a small globe glyph. */
-.nav-file-title[data-path$=".remote"] .nav-file-title-content::before {
+body.webdav-archive-show-globe .nav-file-title[data-path$=".remote"] .nav-file-title-content::before {
   content: "🌐";
   display: inline-block;
   margin-inline-end: 6px;
