@@ -167,6 +167,7 @@ npm run typecheck
 ### CI/CD Release Workflow (`.github/workflows/release.yml`)
 - Triggered on push to `main`, tags, and manual `workflow_dispatch`.
 - Builds plugin (`npm run build`) and verifies required Obsidian assets: `main.js`, `manifest.json`, `styles.css`.
+- Generates cryptographically signed GitHub artifact attestations (`actions/attest-build-provenance`) for provenance verification.
 - Publishes or updates GitHub release matching `manifest.json` version, attaching all assets.
 
 ---
