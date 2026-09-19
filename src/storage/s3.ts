@@ -13,7 +13,6 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { createUuid, parseHttpUrl } from "./transfer";
 import type {
   DownloadContext,
-  DownloadResult,
   StorageProvider,
   TransferProgress,
   UploadedObject,
@@ -88,8 +87,7 @@ export class S3StorageProvider implements StorageProvider {
     let totalBytes: number;
     let mimeType: string;
     let progressCallback: TransferProgress | undefined;
-    let localPath: string | undefined;
-    let dataBuffer: Buffer | undefined;
+    let dataBuffer: Buffer;
 
     if (source instanceof ArrayBuffer) {
       totalBytes = source.byteLength;
@@ -100,35 +98,22 @@ export class S3StorageProvider implements StorageProvider {
       totalBytes = source.size;
       mimeType = source.mimeType;
       progressCallback = typeof mimeTypeOrProgress === "function" ? mimeTypeOrProgress : onProgress;
-      localPath = source.localPath;
-      if (source.data) {
-        dataBuffer = Buffer.from(source.data);
-      }
+      dataBuffer = Buffer.from(source.data);
     }
 
     try {
       if (totalBytes <= MULTIPART_THRESHOLD) {
-        let body: Buffer;
-        if (dataBuffer) {
-          body = dataBuffer;
-        } else if (localPath) {
-          const fs = require("node:fs/promises");
-          body = await fs.readFile(localPath);
-        } else {
-          throw new Error("No data or localPath available for upload");
-        }
-
         await client.send(
           new PutObjectCommand({
             Bucket: this.config.bucket,
             Key: key,
-            Body: body,
+            Body: dataBuffer,
             ContentType: mimeType,
           }),
         );
         progressCallback?.(totalBytes, totalBytes);
       } else {
-        await this.uploadMultipart(client, key, mimeType, totalBytes, localPath, dataBuffer, progressCallback);
+        await this.uploadMultipart(client, key, mimeType, totalBytes, dataBuffer, progressCallback);
       }
 
       // Verify uploaded object exists and size matches
@@ -147,15 +132,14 @@ export class S3StorageProvider implements StorageProvider {
           }),
         );
       }
+
+      return {
+        relativePath,
+        fileUrl: await this.getFileUrl(relativePath),
+      };
     } catch (error) {
-      await this.delete(relativePath).catch(() => undefined);
       throw this.wrapS3Error(error);
     }
-
-    return {
-      relativePath,
-      fileUrl: "",
-    };
   }
 
   private async uploadMultipart(
@@ -163,8 +147,7 @@ export class S3StorageProvider implements StorageProvider {
     key: string,
     mimeType: string,
     totalBytes: number,
-    localPath?: string,
-    dataBuffer?: Buffer,
+    dataBuffer: Buffer,
     onProgress?: TransferProgress,
   ): Promise<void> {
     const createRes = await client.send(
@@ -181,30 +164,15 @@ export class S3StorageProvider implements StorageProvider {
     }
 
     const parts: { PartNumber: number; ETag: string }[] = [];
-    let fileHandle: any = null;
 
     try {
       let offset = 0;
       let partNumber = 1;
       let transferred = 0;
 
-      if (localPath) {
-        const fs = require("node:fs/promises");
-        fileHandle = await fs.open(localPath, "r");
-      }
-
       while (offset < totalBytes) {
         const chunkSize = Math.min(PART_SIZE, totalBytes - offset);
-        let chunk: Buffer;
-
-        if (fileHandle) {
-          chunk = Buffer.alloc(chunkSize);
-          await fileHandle.read(chunk, 0, chunkSize, offset);
-        } else if (dataBuffer) {
-          chunk = dataBuffer.subarray(offset, offset + chunkSize);
-        } else {
-          throw new Error("No source data available for multipart upload");
-        }
+        const chunk = dataBuffer.subarray(offset, offset + chunkSize);
 
         const uploadPartRes = await client.send(
           new UploadPartCommand({
@@ -252,10 +220,6 @@ export class S3StorageProvider implements StorageProvider {
         )
         .catch(() => undefined);
       throw error;
-    } finally {
-      if (fileHandle) {
-        await fileHandle.close().catch(() => undefined);
-      }
     }
   }
 
@@ -263,7 +227,7 @@ export class S3StorageProvider implements StorageProvider {
     relativePath: string,
     onProgress?: TransferProgress,
     context?: DownloadContext,
-  ): Promise<ArrayBuffer | DownloadResult> {
+  ): Promise<ArrayBuffer> {
     this.validateConfiguration();
     const key = this.toObjectKey(relativePath);
     const client = this.getClient();
@@ -283,69 +247,21 @@ export class S3StorageProvider implements StorageProvider {
 
       const totalBytes = response.ContentLength ?? context?.expectedSize ?? null;
 
-      if (context?.localPath) {
-        const fs = require("node:fs");
-        const crypto = require("node:crypto");
-        const tempPath = `${context.localPath}.${Date.now()}.${Math.random().toString(36).slice(2, 8)}.restore.tmp`;
-        const writeStream = fs.createWriteStream(tempPath);
-        const hash = crypto.createHash("sha256");
-        let receivedBytes = 0;
-
-        try {
-          if (typeof stream[Symbol.asyncIterator] === "function") {
-            for await (const chunk of stream) {
-              const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-              receivedBytes += buf.length;
-              hash.update(buf);
-              writeStream.write(buf);
-              onProgress?.(receivedBytes, totalBytes);
-            }
-          } else {
-            throw new Error("S3 GetObject body is not a stream");
-          }
-
-          await new Promise<void>((resolve, reject) => {
-            writeStream.end((err: Error | null) => (err ? reject(err) : resolve()));
-          });
-
-          // Verify downloaded size
-          if (context.expectedSize !== undefined && receivedBytes !== context.expectedSize) {
-            await fs.promises.unlink(tempPath).catch(() => undefined);
-            throw new Error(t("restore.sizeMismatch", { expected: context.expectedSize, actual: receivedBytes }));
-          }
-
-          // Verify checksum
-          const calculatedSha = hash.digest("hex");
-          if (context.expectedSha256 && calculatedSha !== context.expectedSha256) {
-            await fs.promises.unlink(tempPath).catch(() => undefined);
-            throw new Error(t("restore.integrityFailed"));
-          }
-
-          // Rename temp file to destination
-          await fs.promises.rename(tempPath, context.localPath);
-          return { writtenToLocalPath: true };
-        } catch (streamErr) {
-          await fs.promises.unlink(tempPath).catch(() => undefined);
-          throw streamErr;
+      const chunks: Buffer[] = [];
+      let receivedBytes = 0;
+      if (typeof stream[Symbol.asyncIterator] === "function") {
+        for await (const chunk of stream) {
+          const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+          receivedBytes += buf.length;
+          chunks.push(buf);
+          onProgress?.(receivedBytes, totalBytes);
         }
       } else {
-        // In-memory buffering (fallback for mobile/mock environments)
-        const chunks: Buffer[] = [];
-        let receivedBytes = 0;
-        if (typeof stream[Symbol.asyncIterator] === "function") {
-          for await (const chunk of stream) {
-            const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-            receivedBytes += buf.length;
-            chunks.push(buf);
-            onProgress?.(receivedBytes, totalBytes);
-          }
-        } else {
-          throw new Error("S3 GetObject body is not a stream");
-        }
-
-        const fullBuffer = Buffer.concat(chunks);
-        return fullBuffer.buffer.slice(fullBuffer.byteOffset, fullBuffer.byteOffset + fullBuffer.byteLength);
+        throw new Error("S3 GetObject body is not a stream");
       }
+
+      const fullBuffer = Buffer.concat(chunks);
+      return fullBuffer.buffer.slice(fullBuffer.byteOffset, fullBuffer.byteOffset + fullBuffer.byteLength);
     } catch (error) {
       throw this.wrapS3Error(error);
     }

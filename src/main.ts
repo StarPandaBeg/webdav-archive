@@ -1,4 +1,4 @@
-import { FileSystemAdapter, Notice, Platform, Plugin, TFile } from "obsidian";
+import { Notice, Plugin, TFile } from "obsidian";
 import { ParsedRemoteFile, RemoteFile, parseRemoteFile, serializeRemoteFile } from "./remote-file";
 import { WebDavArchiveSettingTab, WebDavArchiveSettings, DEFAULT_SETTINGS } from "./settings";
 import { StorageProvider, StorageType, createStorageProvider } from "./storage";
@@ -185,23 +185,11 @@ export default class WebDavArchivePlugin extends Plugin {
         throw new Error(t("archive.markerExists", { path: markerPath }));
       }
 
-      const localPath =
-        Platform.isDesktopApp && this.app.vault.adapter instanceof FileSystemAdapter
-          ? this.app.vault.adapter.getFullPath(file.path)
-          : undefined;
-
       progress.update(10, t("archive.reading"));
-      let checksum: string;
-      let data: ArrayBuffer | undefined;
+      const data = await this.app.vault.readBinary(file);
 
-      if (localPath) {
-        progress.update(25, t("archive.checksum"));
-        checksum = await calculateFileSha256(localPath);
-      } else {
-        data = await this.app.vault.readBinary(file);
-        progress.update(25, t("archive.checksum"));
-        checksum = await sha256(data);
-      }
+      progress.update(25, t("archive.checksum"));
+      const checksum = await sha256(data);
 
       const mimeType = getMimeType(file.extension);
       const expectedBytes = file.stat.size;
@@ -210,7 +198,6 @@ export default class WebDavArchivePlugin extends Plugin {
       const uploaded = await provider.upload(
         {
           file,
-          localPath,
           data,
           size: expectedBytes,
           mimeType,
@@ -300,13 +287,8 @@ export default class WebDavArchivePlugin extends Plugin {
         return t("restore.complete", { name: metadata.originalName });
       }
 
-      const localPath =
-        Platform.isDesktopApp && this.app.vault.adapter instanceof FileSystemAdapter
-          ? this.app.vault.adapter.getFullPath(targetPath)
-          : undefined;
-
       progress.indeterminate(t("restore.downloading"));
-      const downloadResult = await provider.download(
+      const data = await provider.download(
         relativePath,
         (receivedBytes, totalBytes) => {
           const params = { transferred: formatBytes(receivedBytes), total: formatBytes(totalBytes ?? 0) };
@@ -320,25 +302,21 @@ export default class WebDavArchivePlugin extends Plugin {
           }
         },
         {
-          localPath,
           expectedSize: metadata.size,
           expectedSha256: metadata.sha256,
         },
       );
 
-      if (downloadResult && "byteLength" in downloadResult) {
-        const data = downloadResult as ArrayBuffer;
-        progress.update(68, t("restore.checkingSize"));
-        if (data.byteLength !== metadata.size) {
-          throw new Error(t("restore.sizeMismatch", { expected: metadata.size, actual: data.byteLength }));
-        }
-        progress.update(74, t("restore.verifyingChecksum"));
-        if ((await sha256(data)) !== metadata.sha256) {
-          throw new Error(t("restore.integrityFailed"));
-        }
-        progress.update(84, t("restore.writing"));
-        await this.app.vault.createBinary(targetPath, data);
+      progress.update(68, t("restore.checkingSize"));
+      if (data.byteLength !== metadata.size) {
+        throw new Error(t("restore.sizeMismatch", { expected: metadata.size, actual: data.byteLength }));
       }
+      progress.update(74, t("restore.verifyingChecksum"));
+      if ((await sha256(data)) !== metadata.sha256) {
+        throw new Error(t("restore.integrityFailed"));
+      }
+      progress.update(84, t("restore.writing"));
+      await this.app.vault.createBinary(targetPath, data);
 
       progress.update(90, t("restore.updatingLinks"));
       await updateLinksForRestore(this.app, marker, targetPath);
@@ -479,17 +457,6 @@ function appendLegacyFolder(serverUrl: string, remoteFolder?: string): string {
 async function sha256(data: ArrayBuffer): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", data);
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-async function calculateFileSha256(localPath: string): Promise<string> {
-  const fs = require("node:fs");
-  const cryptoNode = require("node:crypto");
-  const hash = cryptoNode.createHash("sha256");
-  const stream = fs.createReadStream(localPath);
-  for await (const chunk of stream) {
-    hash.update(chunk);
-  }
-  return hash.digest("hex");
 }
 
 function errorMessage(error: unknown): string {
