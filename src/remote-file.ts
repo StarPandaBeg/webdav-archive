@@ -89,8 +89,9 @@ function isVersionThreeRemoteFile(value: unknown): value is RemoteFileV3 {
   const file = value as Record<string, unknown>;
   const isWebDav = file.storage === "webdav";
   const isNextcloud = file.storage === "nextcloud";
+  const isS3 = file.storage === "s3";
 
-  if (!isWebDav && !isNextcloud && (typeof file.storage !== "string" || !file.storage)) {
+  if (!isWebDav && !isNextcloud && !isS3 && (typeof file.storage !== "string" || !file.storage)) {
     return false;
   }
 
@@ -114,8 +115,9 @@ function isVersionTwoRemoteFile(value: unknown): value is Omit<RemoteFileV2, "pu
   const publicUrl = typeof file.publicUrl === "string" ? file.publicUrl : file.fileUrl;
   const isWebDav = file.storage === "webdav";
   const isNextcloud = file.storage === "nextcloud";
+  const isS3 = file.storage === "s3";
 
-  if (!isWebDav && !isNextcloud && (typeof file.storage !== "string" || !file.storage)) {
+  if (!isWebDav && !isNextcloud && !isS3 && (typeof file.storage !== "string" || !file.storage)) {
     return false;
   }
 

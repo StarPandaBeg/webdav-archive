@@ -14,6 +14,14 @@ export interface WebDavArchiveSettings {
   password: string;
   ffmpegPath: string;
   showGlobeIcon: boolean;
+  s3Endpoint: string;
+  s3Region: string;
+  s3Bucket: string;
+  s3AccessKeyId: string;
+  s3SecretAccessKey: string;
+  s3RemotePrefix: string;
+  s3ForcePathStyle: boolean;
+  s3PresignedExpiration: number;
 }
 
 export const DEFAULT_SETTINGS: WebDavArchiveSettings = {
@@ -25,6 +33,14 @@ export const DEFAULT_SETTINGS: WebDavArchiveSettings = {
   password: "",
   ffmpegPath: "",
   showGlobeIcon: true,
+  s3Endpoint: "",
+  s3Region: "us-east-1",
+  s3Bucket: "",
+  s3AccessKeyId: "",
+  s3SecretAccessKey: "",
+  s3RemotePrefix: "",
+  s3ForcePathStyle: false,
+  s3PresignedExpiration: 3600,
 };
 
 export class WebDavArchiveSettingTab extends PluginSettingTab {
@@ -43,6 +59,7 @@ export class WebDavArchiveSettingTab extends PluginSettingTab {
         dropdown
           .addOption("webdav", t("settings.storageTypeGeneric"))
           .addOption("nextcloud", t("settings.storageTypeNextcloud"))
+          .addOption("s3", t("settings.storageTypeS3"))
           .setValue(this.archivePlugin.settings.storageType)
           .onChange(async (value) => {
             this.archivePlugin.settings.storageType = value as StorageType;
@@ -51,7 +68,109 @@ export class WebDavArchiveSettingTab extends PluginSettingTab {
           }),
       );
 
-    if (this.archivePlugin.settings.storageType === "nextcloud") {
+    if (this.archivePlugin.settings.storageType === "s3") {
+      new Setting(containerEl)
+        .setName(t("settings.s3Endpoint"))
+        .setDesc(t("settings.s3EndpointDescription"))
+        .addText((text) =>
+          text
+            .setPlaceholder("https://s3.amazonaws.com")
+            .setValue(this.archivePlugin.settings.s3Endpoint)
+            .onChange(async (value) => {
+              this.archivePlugin.settings.s3Endpoint = value.trim();
+              await this.archivePlugin.saveSettings();
+            }),
+        );
+
+      new Setting(containerEl)
+        .setName(t("settings.s3Region"))
+        .setDesc(t("settings.s3RegionDescription"))
+        .addText((text) =>
+          text
+            .setPlaceholder("us-east-1")
+            .setValue(this.archivePlugin.settings.s3Region)
+            .onChange(async (value) => {
+              this.archivePlugin.settings.s3Region = value.trim();
+              await this.archivePlugin.saveSettings();
+            }),
+        );
+
+      new Setting(containerEl)
+        .setName(t("settings.s3Bucket"))
+        .setDesc(t("settings.s3BucketDescription"))
+        .addText((text) =>
+          text
+            .setPlaceholder("my-bucket")
+            .setValue(this.archivePlugin.settings.s3Bucket)
+            .onChange(async (value) => {
+              this.archivePlugin.settings.s3Bucket = value.trim();
+              await this.archivePlugin.saveSettings();
+            }),
+        );
+
+      new Setting(containerEl)
+        .setName(t("settings.s3AccessKeyId"))
+        .addText((text) =>
+          text
+            .setValue(this.archivePlugin.settings.s3AccessKeyId)
+            .onChange(async (value) => {
+              this.archivePlugin.settings.s3AccessKeyId = value.trim();
+              await this.archivePlugin.saveSettings();
+            }),
+        );
+
+      new Setting(containerEl)
+        .setName(t("settings.s3SecretAccessKey"))
+        .addText((text) => {
+          text.inputEl.type = "password";
+          text
+            .setValue(this.archivePlugin.settings.s3SecretAccessKey)
+            .onChange(async (value) => {
+              this.archivePlugin.settings.s3SecretAccessKey = value.trim();
+              await this.archivePlugin.saveSettings();
+            });
+        });
+
+      new Setting(containerEl)
+        .setName(t("settings.s3RemotePrefix"))
+        .setDesc(t("settings.s3RemotePrefixDescription"))
+        .addText((text) =>
+          text
+            .setPlaceholder("archive")
+            .setValue(this.archivePlugin.settings.s3RemotePrefix)
+            .onChange(async (value) => {
+              this.archivePlugin.settings.s3RemotePrefix = value.trim();
+              await this.archivePlugin.saveSettings();
+            }),
+        );
+
+      new Setting(containerEl)
+        .setName(t("settings.s3ForcePathStyle"))
+        .setDesc(t("settings.s3ForcePathStyleDescription"))
+        .addToggle((toggle) =>
+          toggle
+            .setValue(this.archivePlugin.settings.s3ForcePathStyle)
+            .onChange(async (value) => {
+              this.archivePlugin.settings.s3ForcePathStyle = value;
+              await this.archivePlugin.saveSettings();
+            }),
+        );
+
+      new Setting(containerEl)
+        .setName(t("settings.s3PresignedExpiration"))
+        .setDesc(t("settings.s3PresignedExpirationDescription"))
+        .addText((text) =>
+          text
+            .setPlaceholder("3600")
+            .setValue(String(this.archivePlugin.settings.s3PresignedExpiration || 3600))
+            .onChange(async (value) => {
+              const parsed = Number(value.trim());
+              this.archivePlugin.settings.s3PresignedExpiration =
+                !isNaN(parsed) && parsed > 0 ? parsed : 3600;
+              await this.archivePlugin.saveSettings();
+            }),
+        );
+    } else if (this.archivePlugin.settings.storageType === "nextcloud") {
       new Setting(containerEl)
         .setName(t("settings.nextcloudUrl"))
         .setDesc(t("settings.nextcloudUrlDescription"))
@@ -64,6 +183,26 @@ export class WebDavArchiveSettingTab extends PluginSettingTab {
               await this.archivePlugin.saveSettings();
             }),
         );
+
+      new Setting(containerEl)
+        .setName(t("settings.username"))
+        .addText((text) =>
+          text.setValue(this.archivePlugin.settings.username).onChange(async (value) => {
+            this.archivePlugin.settings.username = value;
+            await this.archivePlugin.saveSettings();
+          }),
+        );
+
+      new Setting(containerEl)
+        .setName(t("settings.password"))
+        .setDesc(t("settings.passwordDescription"))
+        .addText((text) => {
+          text.inputEl.type = "password";
+          text.setValue(this.archivePlugin.settings.password).onChange(async (value) => {
+            this.archivePlugin.settings.password = value;
+            await this.archivePlugin.saveSettings();
+          });
+        });
     } else {
       new Setting(containerEl)
         .setName(t("settings.webDavUrl"))
@@ -90,27 +229,27 @@ export class WebDavArchiveSettingTab extends PluginSettingTab {
               await this.archivePlugin.saveSettings();
             }),
         );
-    }
 
-    new Setting(containerEl)
-      .setName(t("settings.username"))
-      .addText((text) =>
-        text.setValue(this.archivePlugin.settings.username).onChange(async (value) => {
-          this.archivePlugin.settings.username = value;
-          await this.archivePlugin.saveSettings();
-        }),
-      );
+      new Setting(containerEl)
+        .setName(t("settings.username"))
+        .addText((text) =>
+          text.setValue(this.archivePlugin.settings.username).onChange(async (value) => {
+            this.archivePlugin.settings.username = value;
+            await this.archivePlugin.saveSettings();
+          }),
+        );
 
-    new Setting(containerEl)
-      .setName(t("settings.password"))
-      .setDesc(t("settings.passwordDescription"))
-      .addText((text) => {
-        text.inputEl.type = "password";
-        text.setValue(this.archivePlugin.settings.password).onChange(async (value) => {
-          this.archivePlugin.settings.password = value;
-          await this.archivePlugin.saveSettings();
+      new Setting(containerEl)
+        .setName(t("settings.password"))
+        .setDesc(t("settings.passwordDescription"))
+        .addText((text) => {
+          text.inputEl.type = "password";
+          text.setValue(this.archivePlugin.settings.password).onChange(async (value) => {
+            this.archivePlugin.settings.password = value;
+            await this.archivePlugin.saveSettings();
+          });
         });
-      });
+    }
 
     if (Platform.isDesktopApp) {
       new Setting(containerEl)

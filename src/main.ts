@@ -1,4 +1,4 @@
-import { Notice, Platform, Plugin, TFile } from "obsidian";
+import { FileSystemAdapter, Notice, Platform, Plugin, TFile } from "obsidian";
 import { RemoteFile, parseRemoteFile, serializeRemoteFile } from "./remote-file";
 import { WebDavArchiveSettingTab, WebDavArchiveSettings, DEFAULT_SETTINGS } from "./settings";
 import { StorageProvider, StorageType, createStorageProvider } from "./storage";
@@ -90,7 +90,7 @@ export default class WebDavArchivePlugin extends Plugin {
 
   getStorageProvider(storageType?: StorageType | string): StorageProvider {
     const type: StorageType =
-      storageType === "nextcloud" || storageType === "webdav"
+      storageType === "nextcloud" || storageType === "webdav" || storageType === "s3"
         ? storageType
         : this.settings.storageType;
 
@@ -149,7 +149,12 @@ export default class WebDavArchivePlugin extends Plugin {
 
     this.settings = {
       ...DEFAULT_SETTINGS,
-      storageType: saved?.storageType === "nextcloud" ? "nextcloud" : "webdav",
+      storageType:
+        saved?.storageType === "nextcloud"
+          ? "nextcloud"
+          : saved?.storageType === "s3"
+            ? "s3"
+            : "webdav",
       webDavUrl: saved?.webDavUrl ?? legacyWebDavUrl,
       publicUrl: saved?.publicUrl ?? DEFAULT_SETTINGS.publicUrl,
       nextcloudUrl: saved?.nextcloudUrl ?? DEFAULT_SETTINGS.nextcloudUrl,
@@ -157,6 +162,14 @@ export default class WebDavArchivePlugin extends Plugin {
       password: saved?.password ?? DEFAULT_SETTINGS.password,
       ffmpegPath: saved?.ffmpegPath ?? DEFAULT_SETTINGS.ffmpegPath,
       showGlobeIcon: saved?.showGlobeIcon ?? DEFAULT_SETTINGS.showGlobeIcon,
+      s3Endpoint: saved?.s3Endpoint ?? DEFAULT_SETTINGS.s3Endpoint,
+      s3Region: saved?.s3Region ?? DEFAULT_SETTINGS.s3Region,
+      s3Bucket: saved?.s3Bucket ?? DEFAULT_SETTINGS.s3Bucket,
+      s3AccessKeyId: saved?.s3AccessKeyId ?? DEFAULT_SETTINGS.s3AccessKeyId,
+      s3SecretAccessKey: saved?.s3SecretAccessKey ?? DEFAULT_SETTINGS.s3SecretAccessKey,
+      s3RemotePrefix: saved?.s3RemotePrefix ?? DEFAULT_SETTINGS.s3RemotePrefix,
+      s3ForcePathStyle: saved?.s3ForcePathStyle ?? DEFAULT_SETTINGS.s3ForcePathStyle,
+      s3PresignedExpiration: saved?.s3PresignedExpiration ?? DEFAULT_SETTINGS.s3PresignedExpiration,
     };
 
     this.resetStorageProviders();
@@ -170,27 +183,53 @@ export default class WebDavArchivePlugin extends Plugin {
     await this.runExclusive(file.path, t("archive.title", { name: file.name }), async (progress) => {
       progress.update(5, t("archive.checkingConfiguration"));
       const provider = this.getStorageProvider();
-      provider.validateConfiguration({ requirePublicUrl: true });
+      provider.validateConfiguration({ requirePublicUrl: provider.storageType === "webdav" });
       const markerPath = `${file.path}.${REMOTE_EXTENSION}`;
       if (this.app.vault.getAbstractFileByPath(markerPath)) {
         throw new Error(t("archive.markerExists", { path: markerPath }));
       }
 
+      const localPath =
+        Platform.isDesktopApp && this.app.vault.adapter instanceof FileSystemAdapter
+          ? this.app.vault.adapter.getFullPath(file.path)
+          : undefined;
+
       progress.update(10, t("archive.reading"));
-      const data = await this.app.vault.readBinary(file);
+      let checksum: string;
+      let data: ArrayBuffer | undefined;
+
+      if (localPath) {
+        progress.update(25, t("archive.checksum"));
+        checksum = await calculateFileSha256(localPath);
+      } else {
+        data = await this.app.vault.readBinary(file);
+        progress.update(25, t("archive.checksum"));
+        checksum = await sha256(data);
+      }
+
       const mimeType = getMimeType(file.extension);
-      progress.update(25, t("archive.checksum"));
-      const checksum = await sha256(data);
-      const uploaded = await provider.upload(data, mimeType, (sentBytes, totalBytes) => {
-        const expectedBytes = totalBytes ?? data.byteLength;
-        progress.update(
-          30 + transferFraction(sentBytes, expectedBytes) * 50,
-          t("archive.uploadingProgress", {
-            transferred: formatBytes(sentBytes),
-            total: formatBytes(expectedBytes),
-          }),
-        );
-      });
+      const expectedBytes = file.stat.size;
+
+      const uploaded = await provider.upload(
+        {
+          file,
+          localPath,
+          data,
+          size: expectedBytes,
+          mimeType,
+          checksum,
+        },
+        (sentBytes, totalBytes) => {
+          const expected = totalBytes ?? expectedBytes;
+          progress.update(
+            30 + transferFraction(sentBytes, expected) * 50,
+            t("archive.uploadingProgress", {
+              transferred: formatBytes(sentBytes),
+              total: formatBytes(expected),
+            }),
+          );
+        },
+      );
 
       progress.update(82, t("archive.creatingMarker"));
       const metadata: RemoteFile = {
@@ -200,7 +239,7 @@ export default class WebDavArchivePlugin extends Plugin {
         originalName: file.name,
         originalPath: file.path,
         mimeType,
-        size: data.byteLength,
+        size: expectedBytes,
         sha256: checksum,
         archivedAt: new Date().toISOString(),
       };
@@ -264,29 +303,45 @@ export default class WebDavArchivePlugin extends Plugin {
         return t("restore.complete", { name: metadata.originalName });
       }
 
-      progress.indeterminate(t("restore.downloading"));
-      const data = await provider.download(relativePath, (receivedBytes, totalBytes) => {
-        const params = { transferred: formatBytes(receivedBytes), total: formatBytes(totalBytes ?? 0) };
-        if (totalBytes === null) {
-          progress.indeterminate(t("restore.downloadingUnknownSize", params));
-        } else {
-          progress.update(
-            15 + transferFraction(receivedBytes, totalBytes) * 50,
-            t("restore.downloadingProgress", params),
-          );
-        }
-      });
-      progress.update(68, t("restore.checkingSize"));
-      if (data.byteLength !== metadata.size) {
-        throw new Error(t("restore.sizeMismatch", { expected: metadata.size, actual: data.byteLength }));
-      }
-      progress.update(74, t("restore.verifyingChecksum"));
-      if ((await sha256(data)) !== metadata.sha256) {
-        throw new Error(t("restore.integrityFailed"));
-      }
+      const localPath =
+        Platform.isDesktopApp && this.app.vault.adapter instanceof FileSystemAdapter
+          ? this.app.vault.adapter.getFullPath(targetPath)
+          : undefined;
 
-      progress.update(84, t("restore.writing"));
-      await this.app.vault.createBinary(targetPath, data);
+      progress.indeterminate(t("restore.downloading"));
+      const downloadResult = await provider.download(
+        relativePath,
+        (receivedBytes, totalBytes) => {
+          const params = { transferred: formatBytes(receivedBytes), total: formatBytes(totalBytes ?? 0) };
+          if (totalBytes === null) {
+            progress.indeterminate(t("restore.downloadingUnknownSize", params));
+          } else {
+            progress.update(
+              15 + transferFraction(receivedBytes, totalBytes) * 50,
+              t("restore.downloadingProgress", params),
+            );
+          }
+        },
+        {
+          localPath,
+          expectedSize: metadata.size,
+          expectedSha256: metadata.sha256,
+        },
+      );
+
+      if (downloadResult && "byteLength" in downloadResult) {
+        const data = downloadResult as ArrayBuffer;
+        progress.update(68, t("restore.checkingSize"));
+        if (data.byteLength !== metadata.size) {
+          throw new Error(t("restore.sizeMismatch", { expected: metadata.size, actual: data.byteLength }));
+        }
+        progress.update(74, t("restore.verifyingChecksum"));
+        if ((await sha256(data)) !== metadata.sha256) {
+          throw new Error(t("restore.integrityFailed"));
+        }
+        progress.update(84, t("restore.writing"));
+        await this.app.vault.createBinary(targetPath, data);
+      }
 
       progress.update(90, t("restore.updatingLinks"));
       await updateLinksForRestore(this.app, marker, targetPath);
@@ -359,6 +414,17 @@ function appendLegacyFolder(serverUrl: string, remoteFolder?: string): string {
 async function sha256(data: ArrayBuffer): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", data);
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function calculateFileSha256(localPath: string): Promise<string> {
+  const fs = require("node:fs");
+  const cryptoNode = require("node:crypto");
+  const hash = cryptoNode.createHash("sha256");
+  const stream = fs.createReadStream(localPath);
+  for await (const chunk of stream) {
+    hash.update(chunk);
+  }
+  return hash.digest("hex");
 }
 
 function errorMessage(error: unknown): string {
