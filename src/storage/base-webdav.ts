@@ -121,6 +121,20 @@ export abstract class BaseWebDavStorageProvider implements StorageProvider {
     return response.arrayBuffer;
   }
 
+  async exists(relativePath: string): Promise<boolean> {
+    try {
+      const response = await requestUrl({
+        url: this.webDavUrl(relativePath),
+        method: "HEAD",
+        headers: this.authorizationHeaders(),
+        throw: false,
+      });
+      return isSuccess(response.status);
+    } catch {
+      return false;
+    }
+  }
+
   async delete(relativePath: string): Promise<void> {
     const response = await requestUrl({
       url: this.webDavUrl(relativePath),

@@ -1,5 +1,5 @@
 import { FileSystemAdapter, Notice, Platform, Plugin, TFile } from "obsidian";
-import { RemoteFile, parseRemoteFile, serializeRemoteFile } from "./remote-file";
+import { ParsedRemoteFile, RemoteFile, parseRemoteFile, serializeRemoteFile } from "./remote-file";
 import { WebDavArchiveSettingTab, WebDavArchiveSettings, DEFAULT_SETTINGS } from "./settings";
 import { StorageProvider, StorageType, createStorageProvider } from "./storage";
 import { getMimeType } from "./mime";
@@ -9,6 +9,7 @@ import { t } from "./i18n";
 import { convertVideoToMp4 } from "./video-converter";
 import { updateLinksForArchive, updateLinksForRestore } from "./link-updater";
 import { WebDavArchiveApi } from "./api";
+import { confirmAction } from "./confirm-modal";
 
 export type { WebDavArchiveApi };
 
@@ -41,6 +42,12 @@ export default class WebDavArchivePlugin extends Plugin {
               .setTitle(t("menu.restore"))
               .setIcon("download")
               .onClick(() => void this.restoreRemoteFile(file)),
+          );
+          menu.addItem((item) =>
+            item
+              .setTitle(t("menu.deleteRemote"))
+              .setIcon("trash")
+              .onClick(() => void this.deleteRemoteFile(file)),
           );
           return;
         }
@@ -354,6 +361,82 @@ export default class WebDavArchivePlugin extends Plugin {
       await this.app.vault.delete(marker);
       return t("restore.complete", { name: metadata.originalName });
     });
+  }
+
+  private async deleteRemoteFile(marker: TFile): Promise<void> {
+    if (this.activeOperations.has(marker.path)) {
+      new Notice(t("operation.running"));
+      return;
+    }
+
+    let metadata: ParsedRemoteFile;
+    try {
+      const content = await this.app.vault.read(marker);
+      metadata = parseRemoteFile(content);
+    } catch {
+      new Notice(t("error.invalidRemoteFile"));
+      return;
+    }
+
+    const originalName = metadata.originalName || marker.name.replace(/\.remote$/, "");
+    const provider = this.getStorageProvider(metadata.storage);
+    const relativePath =
+      metadata.version === 1
+        ? (provider.relativePathFromLegacyUrl ? provider.relativePathFromLegacyUrl(metadata.url) : "")
+        : metadata.relativePath;
+
+    if (!relativePath) {
+      new Notice(t("error.invalidRemotePath"));
+      return;
+    }
+
+    const confirmed = await confirmAction(this.app, {
+      title: t("deleteRemote.title"),
+      message: t("deleteRemote.confirm", { name: originalName }),
+      warning: t("deleteRemote.warning"),
+      confirmText: t("deleteRemote.button"),
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    if (this.activeOperations.has(marker.path)) {
+      new Notice(t("operation.running"));
+      return;
+    }
+
+    this.activeOperations.add(marker.path);
+    const notice = new Notice(t("deleteRemote.deleting"), 0);
+
+    try {
+      const exists = await provider.exists(relativePath);
+
+      if (!exists) {
+        notice.hide();
+        const removeMarker = await confirmAction(this.app, {
+          title: t("deleteRemote.alreadyMissingTitle"),
+          message: t("deleteRemote.alreadyMissing", { name: originalName }),
+          confirmText: t("deleteRemote.removeMarkerButton"),
+        });
+        if (removeMarker) {
+          await this.app.fileManager.trashFile(marker);
+          new Notice(t("deleteRemote.markerTrashed", { name: originalName }));
+        }
+        return;
+      }
+
+      await provider.delete(relativePath);
+      await this.app.fileManager.trashFile(marker);
+      notice.hide();
+      new Notice(t("deleteRemote.complete", { name: originalName }));
+    } catch (error) {
+      notice.hide();
+      console.error("WebDAV Archive: deleteRemoteFile failed:", error);
+      new Notice(t("deleteRemote.failed", { message: errorMessage(error) }), 8000);
+    } finally {
+      this.activeOperations.delete(marker.path);
+    }
   }
 
   private async convertVideo(file: TFile): Promise<void> {

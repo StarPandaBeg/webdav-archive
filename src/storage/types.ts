@@ -42,7 +42,7 @@ export interface StorageProvider {
     onProgress?: TransferProgress,
     context?: DownloadContext,
   ): Promise<ArrayBuffer | DownloadResult>;
-  exists?(relativePath: string): Promise<boolean>;
+  exists(relativePath: string): Promise<boolean>;
   verify?(relativePath: string, expectedSize?: number): Promise<boolean>;
   delete(relativePath: string): Promise<void>;
   getFileUrl(relativePath: string, forceRefresh?: boolean): Promise<string>;
