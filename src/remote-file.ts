@@ -2,7 +2,7 @@ import { t } from "./i18n";
 import type { StorageType } from "./storage/types";
 
 export interface RemoteFileMetadata {
-  storage: StorageType | string;
+  storage: StorageType;
   originalName: string;
   originalPath: string;
   mimeType: string;
@@ -13,7 +13,7 @@ export interface RemoteFileMetadata {
 
 export interface RemoteFileV3 extends RemoteFileMetadata {
   version: 3;
-  storage: StorageType | string;
+  storage: StorageType;
   relativePath: string;
   publicUrl?: never;
   fileUrl?: never;
@@ -21,7 +21,7 @@ export interface RemoteFileV3 extends RemoteFileMetadata {
 
 export interface RemoteFileV2 extends RemoteFileMetadata {
   version: 2;
-  storage: StorageType | string;
+  storage: StorageType;
   relativePath: string;
   /** Kept for compatibility with existing version 2 readers. */
   publicUrl?: string;

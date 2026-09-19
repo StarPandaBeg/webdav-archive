@@ -131,7 +131,7 @@ export class RemoteFileView extends FileView {
       }
       await this.onLoadFile(this.file);
       new Notice(t("view.previewRefreshed"));
-    } catch (error) {
+    } catch {
       await this.onLoadFile(this.file);
     }
   }

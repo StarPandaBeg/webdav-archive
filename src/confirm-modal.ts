@@ -30,7 +30,7 @@ export function confirmAction(app: App, options: ConfirmOptions): Promise<boolea
       .addButton((btn) =>
         btn
           .setButtonText(options.confirmText ?? t("action.delete"))
-          .setWarning()
+          .setDestructive()
           .onClick(() => {
             confirmed = true;
             modal.close();

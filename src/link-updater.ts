@@ -1,7 +1,7 @@
 import { App, TFile } from "obsidian";
 
 const WIKILINK_REGEX = /(!?\[\[)([^\]|#\r\n]+)(#[^\]|\r\n]*)?(\|[^\]\r\n]*)?(\]\])/g;
-const MARKDOWN_LINK_REGEX = /(!?\[([^\]\r\n]*)\]\()([^\)\s#]+)(#[^\)\s]*)?(\s+[^\)]+)?(\))/g;
+const MARKDOWN_LINK_REGEX = /(!?\[([^\]\r\n]*)\]\()([^)\s#]+)(#[^)\s]*)?(\s+[^)]+)?(\))/g;
 
 /**
  * Finds all internal links pointing to the target file and updates them from
@@ -138,17 +138,18 @@ export function updateLinksInFrontmatter(
         }
       }
     } else if (Array.isArray(val)) {
-      for (let i = 0; i < val.length; i++) {
-        const item = val[i];
+      const items = val as unknown[];
+      for (let i = 0; i < items.length; i++) {
+        const item: unknown = items[i];
         if (typeof item === "string") {
           const cleanItem = item.trim();
           if (shouldReplace(cleanItem)) {
-            val[i] = getReplacement(cleanItem);
+            items[i] = getReplacement(cleanItem);
             changed = true;
           } else {
             const { content: updated, changed: itemChanged } = replaceLinksInMarkdown(item, shouldReplace, getReplacement);
             if (itemChanged) {
-              val[i] = updated;
+              items[i] = updated;
               changed = true;
             }
           }

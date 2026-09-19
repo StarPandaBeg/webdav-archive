@@ -22,22 +22,22 @@ Data loss prevention is the highest priority of this plugin. Adhere to these inv
 ### A. Archiving Invariant
 The local file is **ONLY** deleted if every preceding step succeeds:
 1. Validate storage provider configuration.
-2. Read local file & calculate SHA-256 hash and exact size.
-3. Upload to storage (multipart if S3 > 5MB; streamed if desktop/Node fs).
+2. Read local file via Vault API (`app.vault.readBinary`) & calculate SHA-256 hash using Web Crypto API.
+3. Upload to storage (multipart if S3 > 8MB using buffer chunks).
 4. Verify upload (size check via HEAD/Content-Length or ETag verification).
 5. Create `<filename>.remote` marker file with metadata (format v3).
 6. Update all internal Obsidian links and frontmatter from `[[file]]` to `[[file.remote]]` via `updateLinksForArchive`.
-7. **Only now** delete the original local file from the vault.
+7. **Only now** delete the original local file from the vault via `app.fileManager.trashFile`.
 
 ### B. Restoring Invariant
 The remote object and `.remote` marker are **ONLY** deleted after local restoration is verified:
 1. Check destination path in vault. If occupied by a different file, abort immediately.
-2. Download object from storage to temp file (desktop) or buffer (mobile).
+2. Download object from storage to memory buffer.
 3. Verify downloaded file size and SHA-256 integrity against the marker metadata.
-4. Atomically write/rename restored file into the vault.
+4. Write restored file into the vault via `app.vault.createBinary`.
 5. Update all internal Obsidian links and frontmatter from `[[file.remote]]` to `[[file]]` via `updateLinksForRestore`.
 6. Delete the remote object from storage (`provider.delete(relativePath)`).
-7. Delete the `.remote` marker file.
+7. Delete the `.remote` marker file via `app.vault.delete`.
 *Note:* If steps 6 or 7 fail, the restored local file is preserved. Running "Restore" again will safely detect the existing valid local file and retry the cleanup idempotently.
 
 ### C. Remote Deletion Invariant ("Удалить из удалённого хранилища")
@@ -115,7 +115,7 @@ All storage backends must implement:
 - `readonly storageType: StorageType`
 - `validateConfiguration(options?: { requirePublicUrl?: boolean }): void`
 - `upload(source: ArrayBuffer | UploadSource, ...): Promise<UploadedObject>`
-- `download(relativePath: string, onProgress?, context?: DownloadContext): Promise<ArrayBuffer | DownloadResult>`
+- `download(relativePath: string, onProgress?, context?: DownloadContext): Promise<ArrayBuffer>`
 - `exists(relativePath: string): Promise<boolean>`
 - `delete(relativePath: string): Promise<void>`
 - `getFileUrl(relativePath: string, forceRefresh?: boolean): Promise<string>`
@@ -167,6 +167,7 @@ npm run typecheck
 ### CI/CD Release Workflow (`.github/workflows/release.yml`)
 - Triggered on push to `main`, tags, and manual `workflow_dispatch`.
 - Builds plugin (`npm run build`) and verifies required Obsidian assets: `main.js`, `manifest.json`, `styles.css`.
+- Generates cryptographically signed GitHub artifact attestations (`actions/attest-build-provenance`) for provenance verification.
 - Publishes or updates GitHub release matching `manifest.json` version, attaching all assets.
 
 ---

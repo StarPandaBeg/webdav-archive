@@ -13,7 +13,7 @@ export * from "./s3";
 
 export function createStorageProvider(
   settings: WebDavArchiveSettings,
-  storageType?: StorageType | string,
+  storageType?: string,
 ): StorageProvider {
   const resolvedType = storageType ?? settings.storageType;
   const type: StorageType =

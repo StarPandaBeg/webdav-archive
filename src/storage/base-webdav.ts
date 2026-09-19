@@ -37,15 +37,7 @@ export abstract class BaseWebDavStorageProvider implements StorageProvider {
       mimeType = typeof mimeTypeOrProgress === "string" ? mimeTypeOrProgress : "application/octet-stream";
       progressCallback = onProgress;
     } else {
-      if (source.data) {
-        data = source.data;
-      } else if (source.localPath) {
-        const fs = require("node:fs/promises");
-        const buf = await fs.readFile(source.localPath);
-        data = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
-      } else {
-        throw new Error("No data or localPath provided for upload");
-      }
+      data = source.data;
       mimeType = source.mimeType;
       progressCallback = typeof mimeTypeOrProgress === "function" ? mimeTypeOrProgress : onProgress;
     }

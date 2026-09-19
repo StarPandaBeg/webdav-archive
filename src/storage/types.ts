@@ -11,22 +11,15 @@ export type TransferProgress = (transferredBytes: number, totalBytes: number | n
 
 export interface UploadSource {
   file?: TFile;
-  localPath?: string;
-  data?: ArrayBuffer;
+  data: ArrayBuffer;
   size: number;
   mimeType: string;
   checksum?: string;
 }
 
 export interface DownloadContext {
-  localPath?: string;
   expectedSize?: number;
   expectedSha256?: string;
-}
-
-export interface DownloadResult {
-  data?: ArrayBuffer;
-  writtenToLocalPath?: boolean;
 }
 
 export interface StorageProvider {
@@ -41,7 +34,7 @@ export interface StorageProvider {
     relativePath: string,
     onProgress?: TransferProgress,
     context?: DownloadContext,
-  ): Promise<ArrayBuffer | DownloadResult>;
+  ): Promise<ArrayBuffer>;
   exists(relativePath: string): Promise<boolean>;
   verify?(relativePath: string, expectedSize?: number): Promise<boolean>;
   delete(relativePath: string): Promise<void>;
