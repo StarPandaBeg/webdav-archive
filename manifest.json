@@ -1,7 +1,7 @@
 {
   "id": "remote-archive",
   "name": "Remote Archive",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "minAppVersion": "1.13.0",
   "description": "Move vault files to remote storage and restore them when needed.",
   "author": "StarPandaBeg",
