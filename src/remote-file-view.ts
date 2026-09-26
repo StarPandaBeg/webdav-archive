@@ -187,13 +187,11 @@ export class RemoteFileView extends FileView {
       video.controls = true;
       video.preload = "metadata";
       video.playsInline = true;
-      video.addEventListener("error", handleError, { once: true });
-      const source = video.createEl("source", {
-        attr: { src: fileUrl, type: normalizedMimeType(mimeType) },
-      });
-      source.addEventListener("error", handleError, { once: true });
+      video.src = fileUrl;
+      if (mimeType.split(";", 1)[0].trim() !== "video/webm") {
+        video.addEventListener("error", handleError, { once: true });
+      }
       this.mediaEl = video;
-      video.load();
       return true;
     }
 
@@ -303,9 +301,6 @@ export class RemoteFileView extends FileView {
     if (this.mediaEl) {
       this.mediaEl.pause();
       this.mediaEl.removeAttribute("src");
-      for (const source of this.mediaEl.querySelectorAll("source")) {
-        source.removeAttribute("src");
-      }
       this.mediaEl.load();
       this.mediaEl = null;
     }
@@ -321,8 +316,4 @@ export class RemoteFileView extends FileView {
     documentEl.createEl("h1", { text: t("view.invalid") });
     documentEl.createEl("p", { cls: "mod-warning webdav-archive-remote-error", text: message });
   }
-}
-
-function normalizedMimeType(mimeType: string): string {
-  return mimeType.split(";", 1)[0].trim();
 }
