@@ -19,6 +19,7 @@ export const VIEW_TYPE_REMOTE_FILE = "webdav-archive-remote-file";
 export class RemoteFileView extends FileView {
   private originalName: string | null = null;
   private mediaEl: HTMLMediaElement | null = null;
+  private mediaObjectUrl: string | null = null;
   private markdownComponent: Component | null = null;
   private renderGeneration = 0;
 
@@ -154,7 +155,7 @@ export class RemoteFileView extends FileView {
     await this.archivePlugin.restoreRemoteFile(this.file);
   }
 
-  private renderMedia(metadata: RemoteFile, marker: TFile, fileUrl: string): boolean {
+  private renderMedia(metadata: RemoteFile, marker: TFile, fileUrl: string, allowWebmFallback = true): boolean {
     const mimeType = metadata.mimeType.toLowerCase();
     if (!mimeType.startsWith("image/") && !mimeType.startsWith("video/") && !mimeType.startsWith("audio/")) {
       return false;
@@ -163,8 +164,14 @@ export class RemoteFileView extends FileView {
     this.resetContent(true);
     const generation = this.renderGeneration;
     const stage = this.contentEl.createDiv({ cls: "webdav-archive-media-stage" });
+    let handlingError = false;
     const handleError = (): void => {
-      if (this.file !== marker || this.renderGeneration !== generation) {
+      if (handlingError || this.file !== marker || this.renderGeneration !== generation) {
+        return;
+      }
+      handlingError = true;
+      if (allowWebmFallback && normalizedMimeType(mimeType) === "video/webm") {
+        void this.renderWebmBlobFallback(metadata, marker);
         return;
       }
       this.resetContent();
@@ -185,9 +192,13 @@ export class RemoteFileView extends FileView {
       video.controls = true;
       video.preload = "metadata";
       video.playsInline = true;
-      video.src = fileUrl;
       video.addEventListener("error", handleError, { once: true });
+      const source = video.createEl("source", {
+        attr: { src: fileUrl, type: normalizedMimeType(mimeType) },
+      });
+      source.addEventListener("error", handleError, { once: true });
       this.mediaEl = video;
+      video.load();
       return true;
     }
 
@@ -199,6 +210,36 @@ export class RemoteFileView extends FileView {
     audio.addEventListener("error", handleError, { once: true });
     this.mediaEl = audio;
     return true;
+  }
+
+  private async renderWebmBlobFallback(metadata: RemoteFile, marker: TFile): Promise<void> {
+    this.resetContent();
+    const generation = this.renderGeneration;
+    const loading = this.contentEl.createDiv({
+      cls: "webdav-archive-text-loading",
+      text: t("view.loadingPreview"),
+    });
+
+    try {
+      const provider = this.archivePlugin.getStorageProvider(metadata.storage);
+      const data = await provider.download(metadata.relativePath);
+      if (this.file !== marker || this.renderGeneration !== generation) {
+        return;
+      }
+
+      loading.remove();
+      const objectUrl = URL.createObjectURL(new Blob([data], { type: "video/webm" }));
+      if (this.renderMedia(metadata, marker, objectUrl, false)) {
+        this.mediaObjectUrl = objectUrl;
+      } else {
+        URL.revokeObjectURL(objectUrl);
+      }
+    } catch {
+      if (this.file === marker && this.renderGeneration === generation) {
+        this.resetContent();
+        this.renderInformation(metadata, marker, t("view.previewUnavailable"));
+      }
+    }
   }
 
   private async renderText(metadata: RemoteFile, marker: TFile, fileUrl: string): Promise<boolean> {
@@ -297,8 +338,16 @@ export class RemoteFileView extends FileView {
     if (this.mediaEl) {
       this.mediaEl.pause();
       this.mediaEl.removeAttribute("src");
+      for (const source of this.mediaEl.querySelectorAll("source")) {
+        source.removeAttribute("src");
+      }
       this.mediaEl.load();
       this.mediaEl = null;
+    }
+
+    if (this.mediaObjectUrl) {
+      URL.revokeObjectURL(this.mediaObjectUrl);
+      this.mediaObjectUrl = null;
     }
 
     if (this.markdownComponent) {
@@ -312,4 +361,8 @@ export class RemoteFileView extends FileView {
     documentEl.createEl("h1", { text: t("view.invalid") });
     documentEl.createEl("p", { cls: "mod-warning webdav-archive-remote-error", text: message });
   }
+}
+
+function normalizedMimeType(mimeType: string): string {
+  return mimeType.split(";", 1)[0].trim();
 }
