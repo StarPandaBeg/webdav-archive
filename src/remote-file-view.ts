@@ -163,10 +163,12 @@ export class RemoteFileView extends FileView {
     this.resetContent(true);
     const generation = this.renderGeneration;
     const stage = this.contentEl.createDiv({ cls: "webdav-archive-media-stage" });
+    let handlingError = false;
     const handleError = (): void => {
-      if (this.file !== marker || this.renderGeneration !== generation) {
+      if (handlingError || this.file !== marker || this.renderGeneration !== generation) {
         return;
       }
+      handlingError = true;
       this.resetContent();
       this.renderInformation(metadata, marker, t("view.previewUnavailable"));
     };
@@ -186,7 +188,9 @@ export class RemoteFileView extends FileView {
       video.preload = "metadata";
       video.playsInline = true;
       video.src = fileUrl;
-      video.addEventListener("error", handleError, { once: true });
+      if (mimeType.split(";", 1)[0].trim() !== "video/webm") {
+        video.addEventListener("error", handleError, { once: true });
+      }
       this.mediaEl = video;
       return true;
     }
